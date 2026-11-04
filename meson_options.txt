@@ -1,0 +1,2 @@
+option('essentia_prefix', type : 'string', value : '',
+  description : 'Install prefix of the Essentia build (default: build/essentia-prefix)')
