@@ -447,6 +447,9 @@ Features analyze(const std::string& file, const Options& opt) {
     ebu->output("integratedLoudness").set(f.integratedLufs.emplace());
     ebu->output("loudnessRange").set(loudnessRange);
     ebu->compute();
+    // Nothing passed the -70 LUFS absolute gate (e.g. digital silence): Essentia
+    // reports the gate itself, but BS.1770 integrated loudness is undefined.
+    if (*f.integratedLufs <= -70) f.integratedLufs.reset();
 
     std::vector<Real> left, right;
     left.reserve(stereo.size());
