@@ -5,6 +5,29 @@ project('folksentia', 'cpp',
 
 cxx = meson.get_compiler('cpp')
 
+# System packages needed to link the static Essentia library. Meson cannot
+# install them, so list every missing one at once with the apt command.
+# Keep this list in sync with the README.
+system_packages = [
+  ['eigen3', 'libeigen3-dev'],
+  ['fftw3f', 'libfftw3-dev'],
+  ['samplerate', 'libsamplerate0-dev'],
+  ['libavcodec', 'libavcodec-dev'],
+  ['libavformat', 'libavformat-dev'],
+  ['libavutil', 'libavutil-dev'],
+  ['libswresample', 'libswresample-dev'],
+]
+missing_packages = []
+foreach entry : system_packages
+  if not dependency(entry[0], required : false).found()
+    missing_packages += entry[1]
+  endif
+endforeach
+if missing_packages.length() > 0
+  error('missing system packages: ' + ' '.join(missing_packages) + '\n' +
+        'install them with: sudo apt install ' + ' '.join(missing_packages))
+endif
+
 # Essentia is built from the submodule by scripts/build-essentia.sh into
 # build/essentia-prefix. Override with -Dessentia_prefix=/some/where.
 prefix = get_option('essentia_prefix')
