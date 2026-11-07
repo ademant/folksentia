@@ -260,7 +260,13 @@ void measureFingerprint(const std::vector<Real>& audio, Real sr, Features& f) {
     cp->input("signal").set(clip);
     cp->output("fingerprint").set(fp);
     cp->compute();
-    if (fp.empty()) return;
+    // A too-short signal gives a header with no items ("AQAAAA"): treat as
+    // none. Decoding also confirms the algorithm actually used.
+    uint32_t* items = nullptr;
+    int size = 0, algorithm = -1;
+    if (!chromaprint_decode_fingerprint(fp.data(), int(fp.size()), &items, &size, &algorithm, 1)) return;
+    chromaprint_dealloc(items);
+    if (size <= 0 || algorithm != CHROMAPRINT_ALGORITHM_TEST2) return;
     f.fingerprint = fp;
     f.fingerprintSeconds = Real(n) / sr;
   } catch (const std::exception&) {
