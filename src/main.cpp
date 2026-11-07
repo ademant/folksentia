@@ -296,11 +296,16 @@ Features analyze(const std::string& file, const Options& opt) {
   {
     std::vector<StereoSample> stereo;
     Real nativeRate = 0;
-    int channels = 0;
+    int channels = 0, bitRate = 0;
+    std::string md5, codec;
+    // Standard-mode algorithms require every output to be bound.
     auto loader = make("AudioLoader", "filename", file);
     loader->output("audio").set(stereo);
     loader->output("sampleRate").set(nativeRate);
     loader->output("numberChannels").set(channels);
+    loader->output("md5").set(md5);
+    loader->output("bit_rate").set(bitRate);
+    loader->output("codec").set(codec);
     loader->compute();
     if (stereo.empty() || nativeRate <= 0) throw EssentiaException("no stereo audio decoded from ", file);
 
@@ -309,8 +314,13 @@ Features analyze(const std::string& file, const Options& opt) {
     }
 
     auto ebu = make("LoudnessEBUR128", "sampleRate", nativeRate);
+    std::vector<Real> momentary, shortTerm;
+    Real loudnessRange = 0;
     ebu->input("signal").set(stereo);
+    ebu->output("momentaryLoudness").set(momentary);
+    ebu->output("shortTermLoudness").set(shortTerm);
     ebu->output("integratedLoudness").set(f.integratedLufs.emplace());
+    ebu->output("loudnessRange").set(loudnessRange);
     ebu->compute();
 
     std::vector<Real> left, right;
