@@ -19,7 +19,7 @@ python3 waf configure \
   --prefix="$PREFIX" \
   --build-static \
   --mode=release \
-  --lightweight=libav,libsamplerate,fftw \
+  --lightweight=libav,libsamplerate,fftw,libchromaprint \
   --fft=FFTW
 python3 waf build -j"$JOBS"
 python3 waf install
