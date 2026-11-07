@@ -1,2 +1,4 @@
 /build/
 /builddir/
+/scripts/eval/.venv/
+__pycache__/
