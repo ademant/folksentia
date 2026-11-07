@@ -3,7 +3,8 @@
 A command-line audio feature extractor built on [Essentia](https://github.com/MTG/essentia).
 For each input file it prints JSON with duration, tempo (BPM + confidence),
 key/scale, tuning frequency, ReplayGain, loudness, dynamic complexity, silence,
-EBU R128 loudness and true peak, and optionally beats, downbeats and waveform peaks.
+EBU R128 loudness and true peak, and optionally beats, downbeats, waveform peaks
+and a Chromaprint audio fingerprint.
 
 ## Build
 
@@ -14,7 +15,7 @@ statically. The Essentia version is pinned by the submodule to commit
 ```sh
 # 1. system dependencies (Debian/Ubuntu/Raspberry Pi OS)
 sudo apt install build-essential meson ninja-build pkg-config python3 \
-  libeigen3-dev libfftw3-dev libsamplerate0-dev \
+  libeigen3-dev libfftw3-dev libsamplerate0-dev libchromaprint-dev \
   libavcodec-dev libavformat-dev libavutil-dev libswresample-dev
 
 # 2. fetch + build Essentia (slow the first time; JOBS=1 on low-RAM machines)
@@ -29,12 +30,18 @@ meson compile -C builddir
 `meson setup` checks the system packages from step 1. If any are missing, it
 stops and prints the `apt install` command for the ones that are missing.
 
+Essentia only includes its `Chromaprinter` algorithm when libchromaprint is
+installed at the time `scripts/build-essentia.sh` runs. If you built Essentia
+before installing `libchromaprint-dev`, run the script again; until then
+`--fingerprint` exits with an error.
+
 ## Usage
 
 ```sh
 builddir/folksentia tune.mp3
 builddir/folksentia --fast --beats *.flac > features.json
 builddir/folksentia --downbeats --waveform=200 tune.flac
+builddir/folksentia --fingerprint *.opus > fingerprints.json
 ```
 
 | option | meaning |
@@ -42,6 +49,7 @@ builddir/folksentia --downbeats --waveform=200 tune.flac
 | `-b`, `--beats` | include beat positions (seconds) as `beats` |
 | `-d`, `--downbeats` | include `downbeatIndexes`; implies `--beats` |
 | `-w`, `--waveform[=BINS]` | include `waveform` with BINS peaks (default 150) |
+| `-p`, `--fingerprint` | include `fingerprint`, a Chromaprint fingerprint of the first 120 s |
 | `-f`, `--fast` | use the faster `degara` beat tracker instead of `multifeature` (`bpm_confidence` is then always 0) |
 | `-r`, `--sample-rate HZ` | analysis sample rate (default 44100) |
 
@@ -54,8 +62,9 @@ Output is one object per file, or a JSON array when several files are given.
 Every object has `"schema": 1`. Every field listed below is always present in
 its object; a field whose value is unknown is `null`, never missing. The
 exceptions are the fields that are only printed when their option is given:
-`waveform` (`--waveform`), `beats` (`--beats` or `--downbeats`) and
-`downbeatIndexes` (`--downbeats`).
+`waveform` (`--waveform`), `beats` (`--beats` or `--downbeats`),
+`downbeatIndexes` (`--downbeats`) and `fingerprint` (`--fingerprint`), and
+`file_base64`, which is only printed for paths that are not valid UTF-8.
 
 A file that cannot be decoded gives an error object in place of its analysis:
 
@@ -67,7 +76,8 @@ Analysis object fields:
 
 | field | type | meaning |
 |---|---|---|
-| `file` | string | input path as given |
+| `file` | string | input path as given (see [File names](#file-names)) |
+| `file_base64` | string | only for paths that are not valid UTF-8: the exact path bytes, base64 |
 | `duration` | number | seconds |
 | `bpm`, `bpm_confidence` | number | tempo and its confidence (0 with `--fast`) |
 | `key`, `scale` | string | key and mode, `null` if unknown |
@@ -80,6 +90,7 @@ Analysis object fields:
 | `waveform` | object | `--waveform` only, see below |
 | `beats` | array of seconds | `--beats` or `--downbeats` only |
 | `downbeatIndexes` | array of ints or `null` | `--downbeats` only; indexes into `beats` that start a bar |
+| `fingerprint` | object or `null` | `--fingerprint` only, see below |
 
 `silence` (`schema` 1):
 
@@ -112,6 +123,37 @@ Treat the threshold as untuned until it has been checked on known files.
 
 Essentia's pinned commit does not provide a downbeat or bar-tracking algorithm,
 so this is folksentia's own computation on top of the beat ticks.
+
+`fingerprint` (`schema` 1, `--fingerprint` only):
+
+- `algorithm`: always `"chromaprint"`.
+- `version`: Chromaprint algorithm version, currently 2 (Chromaprint's default
+  `TEST2`, the one `fpcalc` and AcoustID use). Only compare fingerprints with
+  the same `algorithm` and `version`.
+- `durationSec`: seconds of audio fingerprinted: the first 120 s, or the whole
+  file if it is shorter. The 120 s are fixed (the `fpcalc` default) so that
+  fingerprints from different runs compare.
+- `value`: the compressed, base64-encoded fingerprint, the same encoding
+  `fpcalc` prints and AcoustID accepts.
+
+The fingerprint is computed from the mono analysis signal (at
+`--sample-rate`; Chromaprint resamples internally). `fingerprint` is `null`
+when none could be computed: for digital silence, or when Chromaprint returns
+no fingerprint (e.g. for a file only a few seconds long).
+
+### File names
+
+JSON text must be UTF-8, but file names on Linux are arbitrary bytes. When a
+path is not valid UTF-8, `file` shows it with each invalid byte replaced by
+U+FFFD (`\ufffd`), and `file_base64` holds the exact path bytes (standard
+base64 with padding), so the result can still be matched to the file:
+
+```json
+{"schema": 1, "file": "Dans_l\ufffdil.opus", "file_base64": "RGFuc19sxWlsLm9wdXM=", ...}
+```
+
+The same replacement applies to every other string, for example error
+messages that contain the path.
 
 ## License
 

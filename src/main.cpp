@@ -8,6 +8,8 @@
 #include <essentia/essentia.h>
 #include <essentia/essentiamath.h>
 
+#include <chromaprint.h>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -27,12 +29,24 @@ namespace {
 
 constexpr int kSchema = 1;
 
+// Fingerprint the first kFingerprintSeconds of audio, like fpcalc's default.
+// Fixed so that fingerprints from different runs compare.
+constexpr Real kFingerprintSeconds = 120;
+
+// Essentia's Chromaprinter uses CHROMAPRINT_ALGORITHM_DEFAULT. Chromaprint
+// names that algorithm TEST2; it is the one fpcalc and AcoustID use, and we
+// report it as version 2. Fingerprints from other algorithms don't compare.
+static_assert(CHROMAPRINT_ALGORITHM_DEFAULT == CHROMAPRINT_ALGORITHM_TEST2,
+              "libchromaprint default algorithm changed; update fingerprint version");
+constexpr int kFingerprintVersion = 2;
+
 struct Options {
   Real sampleRate = 44100.;
   std::string rhythmMethod = "multifeature";
   bool beats = false;
   bool downbeats = false;
   int waveformBins = 0;  // 0 = no waveform
+  bool fingerprint = false;
   std::vector<std::string> files;
 };
 
@@ -56,6 +70,11 @@ struct Features {
 
   // Indexes into ticks that start a bar; unset when unknown.
   std::optional<std::vector<int>> downbeatIndexes;
+
+  // Chromaprint fingerprint (compressed, base64) and the seconds of audio it
+  // covers; unset when not requested or when none could be computed.
+  std::optional<std::string> fingerprint;
+  Real fingerprintSeconds = 0;
 };
 
 using AlgoPtr = std::unique_ptr<Algorithm>;
@@ -65,10 +84,59 @@ AlgoPtr make(const std::string& name, Args&&... args) {
   return AlgoPtr(AlgorithmFactory::create(name, std::forward<Args>(args)...));
 }
 
+// Length of the valid UTF-8 sequence starting at s[i], or 0 if the bytes
+// there are not valid UTF-8 (RFC 3629: no overlong forms, no surrogates,
+// nothing above U+10FFFF).
+size_t utf8SequenceLength(const std::string& s, size_t i) {
+  const auto at = [&](size_t k) { return static_cast<unsigned char>(s[k]); };
+  const unsigned char c = at(i);
+  if (c < 0x80) return 1;
+  size_t len;
+  unsigned char lo = 0x80, hi = 0xBF;  // allowed range of the second byte
+  if (c >= 0xC2 && c <= 0xDF) len = 2;
+  else if (c == 0xE0) { len = 3; lo = 0xA0; }
+  else if (c >= 0xE1 && c <= 0xEC) len = 3;
+  else if (c == 0xED) { len = 3; hi = 0x9F; }
+  else if (c >= 0xEE && c <= 0xEF) len = 3;
+  else if (c == 0xF0) { len = 4; lo = 0x90; }
+  else if (c >= 0xF1 && c <= 0xF3) len = 4;
+  else if (c == 0xF4) { len = 4; hi = 0x8F; }
+  else return 0;
+  if (i + len > s.size()) return 0;
+  if (at(i + 1) < lo || at(i + 1) > hi) return 0;
+  for (size_t k = 2; k < len; ++k) {
+    if (at(i + k) < 0x80 || at(i + k) > 0xBF) return 0;
+  }
+  return len;
+}
+
+bool isValidUtf8(const std::string& s) {
+  for (size_t i = 0; i < s.size();) {
+    const size_t len = utf8SequenceLength(s, i);
+    if (len == 0) return false;
+    i += len;
+  }
+  return true;
+}
+
+// JSON string literal. Output is always valid UTF-8: each byte that is not
+// part of a valid UTF-8 sequence becomes U+FFFD.
 std::string jsonString(const std::string& s) {
   std::ostringstream o;
   o << '"';
-  for (unsigned char c : s) {
+  for (size_t i = 0; i < s.size();) {
+    const size_t len = utf8SequenceLength(s, i);
+    if (len == 0) {
+      o << "\\ufffd";  // U+FFFD REPLACEMENT CHARACTER
+      ++i;
+      continue;
+    }
+    if (len > 1) {
+      o.write(s.data() + i, std::streamsize(len));
+      i += len;
+      continue;
+    }
+    const unsigned char c = static_cast<unsigned char>(s[i++]);
     switch (c) {
       case '"':  o << "\\\""; break;
       case '\\': o << "\\\\"; break;
@@ -76,7 +144,7 @@ std::string jsonString(const std::string& s) {
       case '\r': o << "\\r"; break;
       case '\t': o << "\\t"; break;
       default:
-        if (c < 0x20) {
+        if (c < 0x20 || c == 0x7F) {
           char buf[8];
           std::snprintf(buf, sizeof buf, "\\u%04x", c);
           o << buf;
@@ -87,6 +155,32 @@ std::string jsonString(const std::string& s) {
   }
   o << '"';
   return o.str();
+}
+
+std::string base64(const std::string& bytes) {
+  static const char kTable[] =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  std::string out;
+  out.reserve((bytes.size() + 2) / 3 * 4);
+  for (size_t i = 0; i < bytes.size(); i += 3) {
+    const size_t n = std::min<size_t>(3, bytes.size() - i);
+    unsigned v = 0;
+    for (size_t k = 0; k < 3; ++k) {
+      v = (v << 8) | (k < n ? static_cast<unsigned char>(bytes[i + k]) : 0u);
+    }
+    for (size_t k = 0; k < 4; ++k) {
+      out += k <= n ? kTable[(v >> (18 - 6 * k)) & 0x3F] : '=';
+    }
+  }
+  return out;
+}
+
+// "file" member, plus "file_base64" (the exact path bytes) when the path is
+// not valid UTF-8 and "file" therefore had to replace bytes with U+FFFD.
+std::string jsonFileMembers(const std::string& file, const std::string& in) {
+  std::string out = in + "\"file\": " + jsonString(file) + ",\n";
+  if (!isValidUtf8(file)) out += in + "\"file_base64\": \"" + base64(file) + "\",\n";
+  return out;
 }
 
 // JSON number, or null when the value is not finite (NaN, +-inf).
@@ -149,6 +243,31 @@ std::vector<int> measureWaveform(const std::vector<Real>& audio, int bins) {
 // bass (below 150 Hz) just after it. Each of the four possible bar phases is
 // scored by how much louder its beats are than the others; the loudest phase
 // wins if it is clearly louder. Returns nothing when there is no clear phase.
+// Chromaprint fingerprint of the first kFingerprintSeconds. Unset for
+// digital silence or when Chromaprint gives no fingerprint (e.g. a file only
+// a few seconds long).
+void measureFingerprint(const std::vector<Real>& audio, Real sr, Features& f) {
+  if (!f.leadMs) return;  // whole file is silent
+  const size_t n = std::min(audio.size(), size_t(kFingerprintSeconds * sr));
+  // Chromaprinter casts samples * 2^15 to int16 without clamping, so clip to
+  // the int16 range first (decoded lossy audio can exceed full scale).
+  const Real top = Real(32767) / Real(32768);
+  std::vector<Real> clip(audio.begin(), audio.begin() + n);
+  for (Real& v : clip) v = std::clamp(v, Real(-1), top);
+  try {
+    std::string fp;
+    auto cp = make("Chromaprinter", "sampleRate", sr, "maxLength", 0.);
+    cp->input("signal").set(clip);
+    cp->output("fingerprint").set(fp);
+    cp->compute();
+    if (fp.empty()) return;
+    f.fingerprint = fp;
+    f.fingerprintSeconds = Real(n) / sr;
+  } catch (const std::exception&) {
+    // no fingerprint: reported as null, the rest of the analysis stands
+  }
+}
+
 std::optional<std::vector<int>> measureDownbeats(const std::vector<Real>& audio,
                                                  const std::vector<Real>& ticks,
                                                  Real sr) {
@@ -353,6 +472,9 @@ Features analyze(const std::string& file, const Options& opt) {
   // Downbeats (needs the beat ticks).
   if (opt.downbeats) f.downbeatIndexes = measureDownbeats(audio, f.ticks, sr);
 
+  // Fingerprint (needs the silence measurement).
+  if (opt.fingerprint) measureFingerprint(audio, sr, f);
+
   return f;
 }
 
@@ -363,7 +485,7 @@ void printFile(std::ostream& o, const std::string& file, const Features& f,
   const std::string in2 = in + "  ";
   o << indent << "{\n"
     << in << "\"schema\": " << kSchema << ",\n"
-    << in << "\"file\": " << jsonString(file) << ",\n"
+    << jsonFileMembers(file, in)
     << in << "\"duration\": " << jsonNum(f.duration) << ",\n"
     << in << "\"bpm\": " << jsonNum(f.bpm) << ",\n"
     << in << "\"bpm_confidence\": " << jsonNum(f.bpmConfidence) << ",\n"
@@ -409,6 +531,20 @@ void printFile(std::ostream& o, const std::string& file, const Features& f,
       o << "null";
     }
   }
+  if (opt.fingerprint) {
+    o << ",\n" << in << "\"fingerprint\": ";
+    if (f.fingerprint) {
+      o << "{\n"
+        << in2 << "\"schema\": " << kSchema << ",\n"
+        << in2 << "\"algorithm\": \"chromaprint\",\n"
+        << in2 << "\"version\": " << kFingerprintVersion << ",\n"
+        << in2 << "\"durationSec\": " << jsonNum(f.fingerprintSeconds) << ",\n"
+        << in2 << "\"value\": " << jsonString(*f.fingerprint) << "\n"
+        << in << "}";
+    } else {
+      o << "null";
+    }
+  }
   o << "\n" << indent << "}";
 }
 
@@ -417,7 +553,7 @@ void printError(std::ostream& o, const std::string& file, const std::string& err
   const std::string in = indent + "  ";
   o << indent << "{\n"
     << in << "\"schema\": " << kSchema << ",\n"
-    << in << "\"file\": " << jsonString(file) << ",\n"
+    << jsonFileMembers(file, in)
     << in << "\"error\": " << jsonString(error) << "\n"
     << indent << "}";
 }
@@ -432,6 +568,7 @@ void usage(std::ostream& o) {
        "  -b, --beats            include beat positions (seconds)\n"
        "  -d, --downbeats        include downbeatIndexes (indexes into beats); implies --beats\n"
        "  -w, --waveform[=BINS]  include BINS waveform peaks, 0..255 (default 150)\n"
+       "  -p, --fingerprint      include a Chromaprint fingerprint of the first 120 s\n"
        "  -f, --fast             use the faster 'degara' beat tracker\n"
        "  -r, --sample-rate HZ   analysis sample rate (default 44100)\n"
        "  -h, --help             show this help\n";
@@ -458,6 +595,7 @@ int main(int argc, char** argv) {
         return 2;
       }
     }
+    else if (a == "-p" || a == "--fingerprint") opt.fingerprint = true;
     else if (a == "-f" || a == "--fast") opt.rhythmMethod = "degara";
     else if ((a == "-r" || a == "--sample-rate") && i + 1 < argc) opt.sampleRate = std::stod(argv[++i]);
     else if (a == "--") { for (++i; i < argc; ++i) opt.files.push_back(argv[i]); }
@@ -469,6 +607,16 @@ int main(int argc, char** argv) {
   essentia::warningLevelActive = false;
   essentia::infoLevelActive = false;
   essentia::init();
+
+  if (opt.fingerprint) {
+    const auto keys = AlgorithmFactory::keys();
+    if (std::find(keys.begin(), keys.end(), "Chromaprinter") == keys.end()) {
+      std::cerr << "folksentia: --fingerprint: Essentia was built without Chromaprint;\n"
+                   "  install libchromaprint-dev and run scripts/build-essentia.sh again\n";
+      essentia::shutdown();
+      return 2;
+    }
+  }
 
   const bool many = opt.files.size() > 1;
   std::cout << std::setprecision(6);
