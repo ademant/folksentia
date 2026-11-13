@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <iomanip>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <sstream>
@@ -567,6 +568,18 @@ void printError(std::ostream& o, const std::string& file, const std::string& err
     << indent << "}";
 }
 
+// The whole of `s` as a finite number, or nothing.
+std::optional<double> parseNumber(const std::string& s) {
+  try {
+    size_t used = 0;
+    const double v = std::stod(s, &used);
+    if (used != s.size() || !std::isfinite(v)) return std::nullopt;
+    return v;
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
+}
+
 void usage(std::ostream& o) {
   o << "Usage: folksentia [options] FILE...\n"
        "\n"
@@ -579,7 +592,8 @@ void usage(std::ostream& o) {
        "  -w, --waveform[=BINS]  include BINS waveform peaks, 0..255 (default 150)\n"
        "  -p, --fingerprint      include a Chromaprint fingerprint of the first 120 s\n"
        "  -f, --fast             use the faster 'degara' beat tracker\n"
-       "  -r, --sample-rate HZ   analysis sample rate (default 44100)\n"
+       "  -r, --sample-rate HZ   analysis sample rate: 8000, 16000, 32000, 44100\n"
+       "                         or 48000 (default 44100)\n"
        "  -h, --help             show this help\n";
 }
 
@@ -606,7 +620,16 @@ int main(int argc, char** argv) {
     }
     else if (a == "-p" || a == "--fingerprint") opt.fingerprint = true;
     else if (a == "-f" || a == "--fast") opt.rhythmMethod = "degara";
-    else if ((a == "-r" || a == "--sample-rate") && i + 1 < argc) opt.sampleRate = std::stod(argv[++i]);
+    else if (a == "-r" || a == "--sample-rate") {
+      const auto hz = i + 1 < argc ? parseNumber(argv[++i]) : std::nullopt;
+      // The rates ReplayGain's EqualLoudness filter supports.
+      constexpr double kRates[] = {8000, 16000, 32000, 44100, 48000};
+      if (!hz || std::find(std::begin(kRates), std::end(kRates), *hz) == std::end(kRates)) {
+        std::cerr << "folksentia: --sample-rate needs HZ of 8000, 16000, 32000, 44100 or 48000\n";
+        return 2;
+      }
+      opt.sampleRate = Real(*hz);
+    }
     else if (a == "--") { for (++i; i < argc; ++i) opt.files.push_back(argv[i]); }
     else if (!a.empty() && a[0] == '-') { std::cerr << "unknown option: " << a << "\n"; usage(std::cerr); return 2; }
     else opt.files.push_back(a);
