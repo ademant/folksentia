@@ -64,7 +64,22 @@ builddir/folksentia --fingerprint *.opus > fingerprints.json
 | `-a`, `--array` | print a JSON array even when only one file is given |
 | `-s`, `--silence-threshold DB` | frame power in dBFS below which a frame counts as silence, −150 to 0 (default −100) |
 | `-f`, `--fast` | use the faster `degara` beat tracker instead of `multifeature` (`bpm_confidence` is then always 0) |
+| `-V`, `--version` | print the version, build date, Essentia version and whether Chromaprint is available, then exit |
 | `-r`, `--sample-rate HZ` | analysis sample rate: 8000, 16000, 32000, 44100 or 48000 (default 44100); tempo and beats are always analysed at 44100 Hz |
+
+`--version` prints, for example:
+
+```
+folksentia 0.1.0+g125f36d
+built 2026-11-13
+Essentia 2.1-beta6-dev (v2.1_beta5-1555-g33108c70)
+Chromaprint yes
+```
+
+The first line is always `folksentia VERSION`. VERSION is the release from
+`meson.build`, plus `+g<commit>` when built from a git checkout (`.dirty` with
+uncommitted changes). The build date is UTC, or taken from `SOURCE_DATE_EPOCH`
+when that is set, for reproducible builds.
 
 Exit status is 0 when every file was analysed, 1 when any file failed (the
 other files are still printed), 2 for bad usage.

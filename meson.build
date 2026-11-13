@@ -67,10 +67,21 @@ essentia = declare_dependency(
                   '-isystem', inc / 'streaming',
                   '-isystem', inc / 'utils'])
 
+python = find_program('python3')
+
+# Version and build date for --version; regenerated on every build, rewritten
+# only when they change.
+version_h = vcs_tag(
+  input : 'src/version.h.in',
+  output : 'version.h',
+  # vcs_tag runs the command in the source dir: give it an absolute path.
+  command : [python, meson.project_source_root() / 'scripts' / 'version.py',
+             meson.project_version(), meson.project_source_root()],
+  fallback : '"' + meson.project_version() + '", "unknown"')
+
 exe = executable('folksentia',
-  'src/main.cpp',
+  'src/main.cpp', version_h,
   dependencies : essentia,
   install : true)
 
-python = find_program('python3')
 test('smoke', python, args : [files('tests/smoke.py'), exe], timeout : 600)
