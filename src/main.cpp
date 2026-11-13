@@ -59,11 +59,13 @@ struct Options {
 
 struct Features {
   Real duration = 0;
-  Real bpm = 0, bpmConfidence = 0;
+  // Tempo, key and tuning are unset when they could not be measured (digital
+  // silence, no tempo found, no frame for the tuning estimate).
+  std::optional<Real> bpm, bpmConfidence;
   std::vector<Real> ticks;
   std::string key, scale;
-  Real keyStrength = 0;
-  Real tuningFrequency = 0, tuningCents = 0;
+  std::optional<Real> keyStrength;
+  std::optional<Real> tuningFrequency, tuningCents;
   Real replayGain = 0, loudness = 0, dynamicComplexity = 0;
 
   // Silence at start and end; unset when the file has no non-silent frame.
@@ -446,33 +448,41 @@ Features analyze(const std::string& file, const Options& opt) {
   if (audio.empty()) throw EssentiaException("no audio decoded from ", file);
   f.duration = audio.size() / sr;
 
+  // Digital silence has no tempo, key or tuning: leave them unknown.
+  const bool silent = isDigitalSilence(audio);
+
   // Tempo + beats, at 44.1 kHz.
-  {
+  if (!silent) {
     auto rhythm = make("RhythmExtractor2013", "method", opt.rhythmMethod);
+    Real bpm = 0, confidence = 0;
     std::vector<Real> estimates, intervals;
     rhythm->input("signal").set(sr == kRhythmRate ? audio : rhythmAudio);
-    rhythm->output("bpm").set(f.bpm);
+    rhythm->output("bpm").set(bpm);
     rhythm->output("ticks").set(f.ticks);
-    rhythm->output("confidence").set(f.bpmConfidence);
+    rhythm->output("confidence").set(confidence);
     rhythm->output("estimates").set(estimates);
     rhythm->output("bpmIntervals").set(intervals);
     rhythm->compute();
-    rhythmAudio.clear();
-    rhythmAudio.shrink_to_fit();
+    if (bpm > 0) {  // 0: no tempo found
+      f.bpm = bpm;
+      f.bpmConfidence = confidence;
+    }
   }
+  rhythmAudio.clear();
+  rhythmAudio.shrink_to_fit();
 
   // Key / mode.
-  {
+  if (!silent) {
     auto key = make("KeyExtractor", "sampleRate", sr);
     key->input("audio").set(audio);
     key->output("key").set(f.key);
     key->output("scale").set(f.scale);
-    key->output("strength").set(f.keyStrength);
+    key->output("strength").set(f.keyStrength.emplace());
     key->compute();
   }
 
   // Tuning frequency (interesting for non-440 Hz folk instruments).
-  {
+  if (!silent) {
     const int frameSize = 4096, hopSize = 2048;
     auto cutter = make("FrameCutter", "frameSize", frameSize, "hopSize", hopSize,
                        "startFromZero", true);
@@ -495,8 +505,10 @@ Features analyze(const std::string& file, const Options& opt) {
     peaks->output("magnitudes").set(mags);
     tuning->input("frequencies").set(freqs);
     tuning->input("magnitudes").set(mags);
-    tuning->output("tuningFrequency").set(f.tuningFrequency);
-    tuning->output("tuningCents").set(f.tuningCents);
+    Real frequency = 0, cents = 0;
+    tuning->output("tuningFrequency").set(frequency);
+    tuning->output("tuningCents").set(cents);
+    bool measured = false;
 
     for (;;) {
       cutter->compute();
@@ -506,6 +518,11 @@ Features analyze(const std::string& file, const Options& opt) {
       spectrum->compute();
       peaks->compute();
       tuning->compute();  // accumulates; output is the running estimate
+      measured = true;
+    }
+    if (measured) {
+      f.tuningFrequency = frequency;
+      f.tuningCents = cents;
     }
   }
 

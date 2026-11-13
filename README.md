@@ -84,10 +84,10 @@ Analysis object fields:
 | `file` | string | input path as given (see [File names](#file-names)) |
 | `file_base64` | string | only for paths that are not valid UTF-8: the exact path bytes, base64 |
 | `duration` | number | seconds |
-| `bpm`, `bpm_confidence` | number | tempo and its confidence (0 with `--fast`) |
-| `key`, `scale` | string | key and mode, `null` if unknown |
-| `key_strength` | number | key detection strength |
-| `tuning_frequency`, `tuning_cents` | number | reference A in Hz and deviation from 440 Hz |
+| `bpm`, `bpm_confidence` | number or `null` | tempo and its confidence (confidence is 0 with `--fast`); `null` when no tempo was found |
+| `key`, `scale` | string or `null` | key and mode, `null` if unknown |
+| `key_strength` | number or `null` | key detection strength |
+| `tuning_frequency`, `tuning_cents` | number or `null` | reference A in Hz and deviation from 440 Hz |
 | `replay_gain_db` | number | ReplayGain |
 | `loudness_db`, `dynamic_complexity` | number | Essentia's dynamic complexity and loudness |
 | `silence` | object | see below |
@@ -96,6 +96,10 @@ Analysis object fields:
 | `beats` | array of seconds | `--beats` or `--downbeats` only |
 | `downbeatIndexes` | array of ints or `null` | `--downbeats` only; indexes into `beats` that start a bar |
 | `fingerprint` | object or `null` | `--fingerprint` only, see below |
+
+For digital silence (no frame above −100 dBFS) tempo, key and tuning are not
+measured: `bpm`, `bpm_confidence`, `key`, `scale`, `key_strength`,
+`tuning_frequency` and `tuning_cents` are `null` and `beats` is empty.
 
 Times in seconds (`duration`, `beats`, `fingerprint.durationSec`) are printed
 with three decimals, i.e. to the millisecond, however long the file is.
