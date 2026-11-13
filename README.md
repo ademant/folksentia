@@ -10,7 +10,9 @@ and a Chromaprint audio fingerprint.
 
 Essentia is vendored as a git submodule (`third_party/essentia`) and linked
 statically. The Essentia version is pinned by the submodule to commit
-`33108c70929684ed14091dfb671a30264cf8bb84`.
+`33108c70929684ed14091dfb671a30264cf8bb84`. That commit needs FFmpeg 7.1 or
+newer (Debian 13 / Raspberry Pi OS trixie, Ubuntu 25.04 or later); Ubuntu 24.04
+ships FFmpeg 6.1, and Essentia fails to build there.
 
 ```sh
 # 1. system dependencies (Debian/Ubuntu/Raspberry Pi OS)

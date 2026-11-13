@@ -7,18 +7,25 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
+    # The pinned Essentia needs FFmpeg >= 7.1 (avcodec_get_supported_config);
+    # ubuntu-24.04 runners only have 6.1.
+    container: ubuntu:26.04
     steps:
+      - name: Install system packages
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates git build-essential meson ninja-build pkg-config python3 \
+            libeigen3-dev libfftw3-dev libsamplerate0-dev libchromaprint-dev \
+            libavcodec-dev libavformat-dev libavutil-dev libswresample-dev
+
       - uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Install system packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential meson ninja-build pkg-config python3 \
-            libeigen3-dev libfftw3-dev libsamplerate0-dev libchromaprint-dev \
-            libavcodec-dev libavformat-dev libavutil-dev libswresample-dev
+      - name: Trust the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       # Building Essentia takes a while; reuse it until the submodule or the
       # build script changes.
