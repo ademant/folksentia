@@ -84,4 +84,16 @@ exe = executable('folksentia',
   dependencies : essentia,
   install : true)
 
+# Batch wrapper for folksonic's offline analysis, next to the binary in the
+# build dir and when installed, where it finds folksentia by default.
+jobs_wrapper = configure_file(
+  input : 'scripts/folksentia-jobs.py',
+  output : 'folksentia-jobs',
+  copy : true,
+  install : true,
+  install_dir : get_option('bindir'),
+  install_mode : 'rwxr-xr-x')
+
 test('smoke', python, args : [files('tests/smoke.py'), exe], timeout : 600)
+test('jobs', python, args : [files('tests/jobs.py'), exe, jobs_wrapper],
+     timeout : 600, depends : exe)

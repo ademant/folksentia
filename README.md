@@ -201,6 +201,56 @@ base64 with padding), so the result can still be matched to the file:
 The same replacement applies to every other string, for example error
 messages that contain the path.
 
+## Offline analysis for folksonic
+
+[folksonic](https://github.com/ademant/folksonic) can have a whole library
+analysed on another machine, for example a desktop with more memory and a
+copy of the music folder. The server exports a job list, `folksentia-jobs`
+runs folksentia over it, and the server imports the results:
+
+```sh
+# on the server
+tinysonic analysis export -c /etc/tinysonic/tinysonic.toml -all -out jobs.json
+
+# on the desktop (folksentia-jobs is built and installed next to folksentia)
+builddir/folksentia-jobs --jobs jobs.json --music-root ~/Musik --out results.jsonl -j 4
+
+# on the server
+tinysonic analysis import -c /etc/tinysonic/tinysonic.toml results.jsonl
+```
+
+| option | meaning |
+|---|---|
+| `--jobs FILE` | job list from `tinysonic analysis export` |
+| `--music-root DIR` | local copy of the music folder; job paths are relative to it |
+| `--out FILE` | result file, one JSON line per job; appended to |
+| `-j`, `--parallel N` | folksentia processes at a time (default: half the CPUs) |
+| `--ignore-mtime` | compare file sizes only, for copies that did not keep modification times (import with `-size-only` then) |
+| `--timeout SEC` | give up on a track after SEC seconds (default: no limit) |
+| `--folksentia PATH` | folksentia binary (default: the one next to the script, else `PATH`) |
+
+Each job runs in its own `folksentia` process, with the flags in the job
+list's `options`, so a crash or an out-of-memory kill only fails that track.
+Memory grows with track length (about 1 GB for a 6-minute track), so lower
+`-j` on machines with little RAM.
+
+Every job gets one line:
+
+- `{"job": …, "local": {"size", "mtimeMs"}, "toolVersion": "…", "result": {…}}`
+  with folksentia's normal output, its `file` replaced by the job's relative
+  path. A crash or timeout becomes a result with `error`, like any other
+  analysis error, and folksonic records it as a failed run.
+- `{"job": …, "skipped": "missing"}` when the file is not in the music root
+  (or the job path is absolute or contains `..`).
+- `{"job": …, "local": …, "skipped": "changed"}` when its size or modification
+  time differs from the job's.
+
+`toolVersion` is the version from `folksentia --version`. The run can be
+stopped and started again with the same arguments: jobs already in the result
+file are skipped, and a half-written last line is removed. Exit status: 0 when
+every job has a line without an error, 1 when some analysis failed, 2 for bad
+usage or an unreadable job list.
+
 ## License
 
 Essentia is AGPL-3.0; a binary statically linking it is therefore AGPL-3.0 as well.
