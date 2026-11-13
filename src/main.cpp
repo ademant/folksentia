@@ -195,6 +195,15 @@ std::string jsonNum(Real v) {
   return o.str();
 }
 
+// Time in seconds with fixed millisecond resolution, or null when not finite.
+// (Significant digits would lose resolution as times grow.)
+std::string jsonSeconds(Real v) {
+  if (!std::isfinite(v)) return "null";
+  std::ostringstream o;
+  o << std::fixed << std::setprecision(3) << v;
+  return o.str();
+}
+
 std::string jsonNum(const std::optional<Real>& v) {
   return v ? jsonNum(*v) : "null";
 }
@@ -525,7 +534,7 @@ void printFile(std::ostream& o, const std::string& file, const Features& f,
   o << indent << "{\n"
     << in << "\"schema\": " << kSchema << ",\n"
     << jsonFileMembers(file, in)
-    << in << "\"duration\": " << jsonNum(f.duration) << ",\n"
+    << in << "\"duration\": " << jsonSeconds(f.duration) << ",\n"
     << in << "\"bpm\": " << jsonNum(f.bpm) << ",\n"
     << in << "\"bpm_confidence\": " << jsonNum(f.bpmConfidence) << ",\n"
     << in << "\"key\": " << jsonText(f.key) << ",\n"
@@ -556,7 +565,7 @@ void printFile(std::ostream& o, const std::string& file, const Features& f,
   }
   if (opt.beats) {
     o << ",\n" << in << "\"beats\": [";
-    for (size_t i = 0; i < f.ticks.size(); ++i) o << (i ? ", " : "") << jsonNum(f.ticks[i]);
+    for (size_t i = 0; i < f.ticks.size(); ++i) o << (i ? ", " : "") << jsonSeconds(f.ticks[i]);
     o << "]";
   }
   if (opt.downbeats) {
@@ -577,7 +586,7 @@ void printFile(std::ostream& o, const std::string& file, const Features& f,
         << in2 << "\"schema\": " << kSchema << ",\n"
         << in2 << "\"algorithm\": \"chromaprint\",\n"
         << in2 << "\"version\": " << kFingerprintVersion << ",\n"
-        << in2 << "\"durationSec\": " << jsonNum(f.fingerprintSeconds) << ",\n"
+        << in2 << "\"durationSec\": " << jsonSeconds(f.fingerprintSeconds) << ",\n"
         << in2 << "\"value\": " << jsonString(*f.fingerprint) << "\n"
         << in << "}";
     } else {

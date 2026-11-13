@@ -92,6 +92,9 @@ Analysis object fields:
 | `downbeatIndexes` | array of ints or `null` | `--downbeats` only; indexes into `beats` that start a bar |
 | `fingerprint` | object or `null` | `--fingerprint` only, see below |
 
+Times in seconds (`duration`, `beats`, `fingerprint.durationSec`) are printed
+with three decimals, i.e. to the millisecond, however long the file is.
+
 `silence` (`schema` 1):
 
 - `leadMs`: time before the first non-silent frame, in milliseconds.
