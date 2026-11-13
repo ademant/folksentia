@@ -32,6 +32,14 @@ namespace {
 
 constexpr int kSchema = 1;
 
+// Tuning is also measured per segment of this length, for its spread.
+constexpr Real kTuningSegmentSec = 30;
+
+// Keys weaker than this are reported as unknown. Reliable keys on folk
+// recordings came out at 0.85-0.95; a cappella singing drifting by a quarter
+// tone gave 0.54 (see README).
+constexpr Real kMinKeyStrength = 0.6;
+
 // Sample rate RhythmExtractor2013 is designed for.
 constexpr Real kRhythmRate = 44100;
 
@@ -68,6 +76,8 @@ struct Features {
   std::string key, scale;
   std::optional<Real> keyStrength;
   std::optional<Real> tuningFrequency, tuningCents;
+  // Spread of the tuning across segments (cents); unset with fewer than two.
+  std::optional<Real> tuningSpreadCents;
   Real replayGain = 0, loudness = 0, dynamicComplexity = 0;
 
   // Silence at start and end; unset when the file has no non-silent frame.
@@ -249,6 +259,26 @@ void measureSilence(const std::vector<Real>& audio, Real sr, Real thresholdDb, F
   if (!span) return;  // all silent: unknown
   f.leadMs = Real(span->first) / sr * 1000.;
   f.tailMs = Real(audio.size() - span->second) / sr * 1000.;
+}
+
+// Spread of the segments' tuning around `overall`, in cents: 10th to 90th
+// percentile. Tuning repeats every semitone, so each segment's deviation is
+// wrapped into [-50, 50) cents. Unset with fewer than two segments.
+std::optional<Real> tuningSpread(const std::vector<Real>& segments, Real overall) {
+  if (segments.size() < 2 || !(overall > 0)) return std::nullopt;
+  std::vector<Real> cents;
+  for (Real hz : segments) {
+    Real c = 1200 * std::log2(hz / overall);
+    c -= 100 * std::floor((c + 50) / 100);
+    cents.push_back(c);
+  }
+  std::sort(cents.begin(), cents.end());
+  const auto at = [&](Real q) {  // linear interpolation between ranks
+    const Real r = q * Real(cents.size() - 1);
+    const size_t i = size_t(r);
+    return i + 1 < cents.size() ? cents[i] + (r - Real(i)) * (cents[i + 1] - cents[i]) : cents[i];
+  };
+  return at(0.9) - at(0.1);
 }
 
 // `signal` resampled from rate `from` to rate `to`.
@@ -488,17 +518,8 @@ Features analyze(const std::string& file, const Options& opt) {
   rhythmAudio.clear();
   rhythmAudio.shrink_to_fit();
 
-  // Key / mode.
-  if (!silent) {
-    auto key = make("KeyExtractor", "sampleRate", sr);
-    key->input("audio").set(audio);
-    key->output("key").set(f.key);
-    key->output("scale").set(f.scale);
-    key->output("strength").set(f.keyStrength.emplace());
-    key->compute();
-  }
-
-  // Tuning frequency (interesting for non-440 Hz folk instruments).
+  // Tuning frequency (interesting for non-440 Hz folk instruments), over the
+  // whole file and per kTuningSegmentSec segment for its spread.
   if (!silent) {
     const int frameSize = 4096, hopSize = 2048;
     auto cutter = make("FrameCutter", "frameSize", frameSize, "hopSize", hopSize,
@@ -509,6 +530,7 @@ Features analyze(const std::string& file, const Options& opt) {
                       "minFrequency", 40.0, "maxFrequency", 5000.0,
                       "orderBy", "magnitude", "magnitudeThreshold", 1e-5);
     auto tuning = make("TuningFrequency");
+    auto segmentTuning = make("TuningFrequency");
 
     std::vector<Real> frame, windowed, spec, freqs, mags;
     cutter->input("signal").set(audio);
@@ -520,26 +542,58 @@ Features analyze(const std::string& file, const Options& opt) {
     peaks->input("spectrum").set(spec);
     peaks->output("frequencies").set(freqs);
     peaks->output("magnitudes").set(mags);
-    tuning->input("frequencies").set(freqs);
-    tuning->input("magnitudes").set(mags);
-    Real frequency = 0, cents = 0;
+    Real frequency = 0, cents = 0, segmentFrequency = 0, segmentCents = 0;
+    for (auto* t : {tuning.get(), segmentTuning.get()}) {
+      t->input("frequencies").set(freqs);
+      t->input("magnitudes").set(mags);
+    }
     tuning->output("tuningFrequency").set(frequency);
     tuning->output("tuningCents").set(cents);
-    bool measured = false;
+    segmentTuning->output("tuningFrequency").set(segmentFrequency);
+    segmentTuning->output("tuningCents").set(segmentCents);
 
-    for (;;) {
+    const size_t framesPerSegment = size_t(kTuningSegmentSec * sr / hopSize);
+    const size_t minSegmentFrames = framesPerSegment / 3;  // enough sound to count
+    std::vector<Real> segments;  // tuning of each segment, Hz
+    size_t index = 0, measured = 0, segmentMeasured = 0;
+    const auto endSegment = [&] {
+      if (segmentMeasured >= minSegmentFrames) segments.push_back(segmentFrequency);
+      segmentTuning->reset();
+      segmentMeasured = 0;
+    };
+    for (;; ++index) {
       cutter->compute();
       if (frame.empty()) break;
+      if (index > 0 && index % framesPerSegment == 0) endSegment();
       if (isSilent(frame)) continue;
       window->compute();
       spectrum->compute();
       peaks->compute();
       tuning->compute();  // accumulates; output is the running estimate
-      measured = true;
+      segmentTuning->compute();
+      ++measured;
+      ++segmentMeasured;
     }
-    if (measured) {
+    endSegment();
+    if (measured > 0) {
       f.tuningFrequency = frequency;
       f.tuningCents = cents;
+      f.tuningSpreadCents = tuningSpread(segments, frequency);
+    }
+  }
+
+  // Key / mode, on the measured tuning. A weak key is reported as unknown.
+  if (!silent) {
+    auto key = make("KeyExtractor", "sampleRate", sr,
+                    "tuningFrequency", f.tuningFrequency.value_or(Real(440)));
+    key->input("audio").set(audio);
+    key->output("key").set(f.key);
+    key->output("scale").set(f.scale);
+    key->output("strength").set(f.keyStrength.emplace());
+    key->compute();
+    if (*f.keyStrength < kMinKeyStrength) {
+      f.key.clear();
+      f.scale.clear();
     }
   }
 
@@ -588,6 +642,7 @@ void printFile(std::ostream& o, const std::string& file, const Features& f,
     << in << "\"key_strength\": " << jsonNum(f.keyStrength) << ",\n"
     << in << "\"tuning_frequency\": " << jsonNum(f.tuningFrequency) << ",\n"
     << in << "\"tuning_cents\": " << jsonNum(f.tuningCents) << ",\n"
+    << in << "\"tuning_spread_cents\": " << jsonNum(f.tuningSpreadCents) << ",\n"
     << in << "\"replay_gain_db\": " << jsonNum(f.replayGain) << ",\n"
     << in << "\"loudness_db\": " << jsonNum(f.loudness) << ",\n"
     << in << "\"dynamic_complexity\": " << jsonNum(f.dynamicComplexity) << ",\n"

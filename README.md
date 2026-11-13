@@ -110,9 +110,10 @@ Analysis object fields:
 | `file_base64` | string | only for paths that are not valid UTF-8: the exact path bytes, base64 |
 | `duration` | number | seconds |
 | `bpm`, `bpm_confidence` | number or `null` | tempo and its confidence (confidence is 0 with `--fast`); `null` when no tempo was found |
-| `key`, `scale` | string or `null` | key and mode, `null` if unknown |
-| `key_strength` | number or `null` | key detection strength |
+| `key`, `scale` | string or `null` | key and mode, measured against the file's own tuning; `null` if unknown or weak (see below) |
+| `key_strength` | number or `null` | key detection strength, 0..1 |
 | `tuning_frequency`, `tuning_cents` | number or `null` | reference A in Hz and deviation from 440 Hz |
+| `tuning_spread_cents` | number or `null` | how much the tuning measured per 30 s segment varies (see below); `null` with fewer than two segments |
 | `replay_gain_db` | number | ReplayGain |
 | `loudness_db`, `dynamic_complexity` | number | Essentia's dynamic complexity and loudness |
 | `silence` | object | see below |
@@ -122,9 +123,23 @@ Analysis object fields:
 | `downbeatIndexes` | array of ints or `null` | `--downbeats` only; indexes into `beats` that start a bar |
 | `fingerprint` | object or `null` | `--fingerprint` only, see below |
 
+**Key and tuning.** The key is detected against the measured tuning, not
+against A = 440 Hz. `key` and `scale` are `null` when `key_strength` is below
+0.6; `key_strength` is still reported. On folk recordings, reliable keys came
+out at 0.85–0.95, and unaccompanied singing that drifted by a quarter tone at
+0.41–0.54.
+
+`tuning_spread_cents` is the range (10th to 90th percentile) of the tuning
+measured in each 30-second segment, relative to the overall tuning and wrapped
+to ±50 cents. It is a confidence measure for `tuning_frequency`: a large value
+means either that the pitch really moves (singers drifting, retuning) or that
+the estimate is unstable (dense, heavily limited mixes). Measured values: 4–12
+cents for most recordings, 18–24 for some, and about 68 both for an a cappella
+song and for a loudly mastered band recording.
+
 For digital silence (no frame above −100 dBFS) tempo, key and tuning are not
 measured: `bpm`, `bpm_confidence`, `key`, `scale`, `key_strength`,
-`tuning_frequency` and `tuning_cents` are `null` and `beats` is empty.
+`tuning_frequency`, `tuning_cents` and `tuning_spread_cents` are `null` and `beats` is empty.
 
 Times in seconds (`duration`, `beats`, `fingerprint.durationSec`) are printed
 with three decimals, i.e. to the millisecond, however long the file is.

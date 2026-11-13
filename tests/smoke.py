@@ -106,8 +106,9 @@ def main():
     check(out["waveform"]["bins"] == 10 and max(out["waveform"]["peaks"]) == 255, "clicks: waveform")
     check(out["loudness"]["integratedLufs"] is not None and out["loudness"]["truePeakDbtp"] is not None,
           "clicks: loudness measured")
-    for field in ("key", "scale", "key_strength", "tuning_frequency", "tuning_cents"):
+    for field in ("key", "scale", "key_strength", "tuning_frequency", "tuning_cents", "tuning_spread_cents"):
         check(field in out, f"clicks: has {field}")
+    check((out["key"] is None) == (out["key_strength"] < 0.6), "clicks: key null exactly when strength < 0.6")
 
     # Tempo must not depend on the analysis rate.
     rc, out, _, _ = run("-r", "16000", j("clicks.wav"))
@@ -119,7 +120,8 @@ def main():
     # Digital silence: unknown values are null.
     rc, out, _, _ = run("--beats", "--downbeats", j("silence.wav"))
     check(rc == 0, "silence: exit 0")
-    for field in ("bpm", "bpm_confidence", "key", "scale", "key_strength", "tuning_frequency", "tuning_cents"):
+    for field in ("bpm", "bpm_confidence", "key", "scale", "key_strength", "tuning_frequency", "tuning_cents",
+                  "tuning_spread_cents"):
         check(out[field] is None, f"silence: {field} is null")
     check(out["silence"]["leadMs"] is None and out["silence"]["tailMs"] is None, "silence: lead/tail null")
     check(out["loudness"]["integratedLufs"] is None and out["loudness"]["truePeakDbtp"] is None,
@@ -158,6 +160,22 @@ def main():
     out = json.loads(p.stdout.decode("utf-8"))
     check(p.returncode == 0 and out["file"].endswith("caf�.wav")
           and base64.b64decode(out["file_base64"]) == raw, "non-UTF-8 name: file and file_base64")
+
+    # Tuning: steady 440 Hz vs. a tone that rises by 47 cents halfway.
+    def tones(parts, rate=22050):
+        out = []
+        for hz, secs in parts:
+            out += [0.3 * (math.sin(2 * math.pi * hz * k / rate) + 0.5 * math.sin(4 * math.pi * hz * k / rate))
+                    for k in range(int(secs * rate))]
+        return out
+    write_wav(j("steady.wav"), 22050, 1, tones([(440, 70)]))
+    write_wav(j("drift.wav"), 22050, 1, tones([(440, 35), (440 * 2 ** (47 / 1200), 35)]))
+    rc, steady, _, _ = run(j("steady.wav"))
+    rc2, drift, _, _ = run(j("drift.wav"))
+    check(near(steady["tuning_frequency"], 440, 1) and near(steady["tuning_spread_cents"], 0, 5),
+          f"steady tone: 440 Hz, spread ~0 ({steady['tuning_frequency']}, {steady['tuning_spread_cents']})")
+    check(drift["tuning_spread_cents"] is not None and drift["tuning_spread_cents"] > 30,
+          f"tone rising 47 cents: large spread ({drift['tuning_spread_cents']})")
 
     # True peak is measured in blocks of 2^19 samples: a peak on a block
     # boundary must read the same as one inside a block.
