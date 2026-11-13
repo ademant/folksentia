@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential meson ninja-build pkg-config python3 \
+            libeigen3-dev libfftw3-dev libsamplerate0-dev libchromaprint-dev \
+            libavcodec-dev libavformat-dev libavutil-dev libswresample-dev
+
+      # Building Essentia takes a while; reuse it until the submodule or the
+      # build script changes.
+      - name: Essentia submodule commit
+        id: essentia
+        run: echo "sha=$(git rev-parse HEAD:third_party/essentia)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Essentia
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: build/essentia-prefix
+          key: essentia-${{ runner.os }}-${{ steps.essentia.outputs.sha }}-${{ hashFiles('scripts/build-essentia.sh') }}
+
+      - name: Build Essentia
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: JOBS=4 scripts/build-essentia.sh
+
+      - name: Build folksentia
+        run: |
+          meson setup builddir
+          meson compile -C builddir
+
+      - name: Test
+        run: meson test -C builddir --print-errorlogs

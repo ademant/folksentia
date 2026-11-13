@@ -35,6 +35,16 @@ installed at the time `scripts/build-essentia.sh` runs. If you built Essentia
 before installing `libchromaprint-dev`, run the script again; until then
 `--fingerprint` exits with an error.
 
+To run the smoke tests (they synthesise small WAV files, so no test data is
+needed):
+
+```sh
+meson test -C builddir --print-errorlogs
+```
+
+Accuracy against public reference data is checked separately, see
+[`scripts/eval`](scripts/eval/README.md).
+
 ## Usage
 
 ```sh

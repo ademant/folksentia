@@ -67,7 +67,10 @@ essentia = declare_dependency(
                   '-isystem', inc / 'streaming',
                   '-isystem', inc / 'utils'])
 
-executable('folksentia',
+exe = executable('folksentia',
   'src/main.cpp',
   dependencies : essentia,
   install : true)
+
+python = find_program('python3')
+test('smoke', python, args : [files('tests/smoke.py'), exe], timeout : 600)
