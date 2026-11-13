@@ -239,10 +239,6 @@ std::vector<int> measureWaveform(const std::vector<Real>& audio, int bins) {
   return out;
 }
 
-// Bar starts from the beat ticks. Each beat is scored by the energy of the
-// bass (below 150 Hz) just after it. Each of the four possible bar phases is
-// scored by how much louder its beats are than the others; the loudest phase
-// wins if it is clearly louder. Returns nothing when there is no clear phase.
 // Chromaprint fingerprint of the first kFingerprintSeconds. Unset for
 // digital silence or when Chromaprint gives no fingerprint (e.g. a file only
 // a few seconds long).
@@ -274,6 +270,10 @@ void measureFingerprint(const std::vector<Real>& audio, Real sr, Features& f) {
   }
 }
 
+// Bar starts from the beat ticks. Each beat is scored by the energy of the
+// bass (below 150 Hz) just after it. Each of the four possible bar phases is
+// scored by how much louder its beats are than the others; the loudest phase
+// wins if it is clearly louder. Returns nothing when there is no clear phase.
 std::optional<std::vector<int>> measureDownbeats(const std::vector<Real>& audio,
                                                  const std::vector<Real>& ticks,
                                                  Real sr) {
