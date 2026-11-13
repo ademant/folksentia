@@ -48,6 +48,7 @@ builddir/folksentia --fingerprint *.opus > fingerprints.json
 |---|---|
 | `-b`, `--beats` | include beat positions (seconds) as `beats` |
 | `-d`, `--downbeats` | include `downbeatIndexes`; implies `--beats` |
+| `-m`, `--meter N` | beats per bar for `--downbeats`, 2 to 12 (default 4) |
 | `-w`, `--waveform[=BINS]` | include `waveform` with BINS peaks (default 150) |
 | `-p`, `--fingerprint` | include `fingerprint`, a Chromaprint fingerprint of the first 120 s |
 | `-a`, `--array` | print a JSON array even when only one file is given |
@@ -121,9 +122,10 @@ file is measured as dual mono (the same signal on both channels). Both values ar
 - `peaks`: array of `bins` integers 0..255. Each is the largest absolute sample in that bin, scaled so the loudest bin is 255.
 
 `downbeatIndexes` is a heuristic and is `null` when there is no clear bar
-structure, for example with fewer than 8 beats or when no bar phase is clearly
-louder than the others. It assumes 4/4 time. The bass (below 150 Hz) energy
-just after each beat is compared across the four possible bar phases. The
+structure, for example with fewer than two bars of beats or when no bar phase
+is clearly louder than the others. It assumes `--meter` beats per bar (default
+4, e.g. 3 for a waltz); it does not detect the meter. The bass (below 150 Hz)
+energy just after each beat is compared across the possible bar phases. The
 phase is chosen when its beats are at least 20% louder than the other beats.
 Treat the threshold as untuned until it has been checked on known files.
 

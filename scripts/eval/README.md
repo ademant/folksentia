@@ -58,4 +58,4 @@ All in percent, averaged per dance style and overall:
 - **DbF**: downbeat F-measure (±70 ms). **Db?**: share of files where
   folksentia gave `downbeatIndexes: null`.
 - **meter**: beats per bar in the annotations. Waltz and Viennese waltz are
-  3/4; folksentia's downbeat heuristic assumes 4/4.
+  3/4; folksentia's downbeat heuristic assumes 4/4 unless run with `--meter`.

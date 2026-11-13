@@ -52,6 +52,7 @@ struct Options {
   int waveformBins = 0;  // 0 = no waveform
   bool fingerprint = false;
   bool array = false;  // always print a JSON array
+  int meter = 4;       // beats per bar, for downbeats
   std::vector<std::string> files;
 };
 
@@ -332,15 +333,14 @@ void measureFingerprint(const std::vector<Real>& audio, Real sr, Features& f) {
 }
 
 // Bar starts from the beat ticks. Each beat is scored by the energy of the
-// bass (below 150 Hz) just after it. Each of the four possible bar phases is
+// bass (below 150 Hz) just after it. Each of the `meter` possible bar phases is
 // scored by how much louder its beats are than the others; the loudest phase
 // wins if it is clearly louder. Returns nothing when there is no clear phase.
 std::optional<std::vector<int>> measureDownbeats(const std::vector<Real>& audio,
                                                  const std::vector<Real>& ticks,
-                                                 Real sr) {
-  constexpr int kMeter = 4;
+                                                 Real sr, int meter) {
   constexpr Real kMinContrast = 1.2;  // phase energy / energy of other beats
-  if (ticks.size() < size_t(2 * kMeter) || audio.empty()) return std::nullopt;
+  if (ticks.size() < size_t(2 * meter) || audio.empty()) return std::nullopt;
 
   std::vector<Real> bass;
   {
@@ -369,11 +369,11 @@ std::optional<std::vector<int>> measureDownbeats(const std::vector<Real>& audio,
 
   Real bestContrast = 0;
   int bestPhase = -1;
-  for (int p = 0; p < kMeter; ++p) {
+  for (int p = 0; p < meter; ++p) {
     Real sumIn = 0, sumOut = 0;
     size_t nIn = 0, nOut = 0;
     for (size_t i = 0; i < accent.size(); ++i) {
-      if (int(i % kMeter) == p) { sumIn += accent[i]; ++nIn; }
+      if (int(i % meter) == p) { sumIn += accent[i]; ++nIn; }
       else { sumOut += accent[i]; ++nOut; }
     }
     if (nIn == 0 || nOut == 0) continue;
@@ -384,7 +384,7 @@ std::optional<std::vector<int>> measureDownbeats(const std::vector<Real>& audio,
   if (bestPhase < 0 || bestContrast < kMinContrast) return std::nullopt;
 
   std::vector<int> out;
-  for (size_t i = bestPhase; i < ticks.size(); i += kMeter) out.push_back(int(i));
+  for (size_t i = bestPhase; i < ticks.size(); i += meter) out.push_back(int(i));
   return out;
 }
 
@@ -519,7 +519,7 @@ Features analyze(const std::string& file, const Options& opt) {
   if (opt.waveformBins > 0) f.waveform = measureWaveform(audio, opt.waveformBins);
 
   // Downbeats (needs the beat ticks).
-  if (opt.downbeats) f.downbeatIndexes = measureDownbeats(audio, f.ticks, sr);
+  if (opt.downbeats) f.downbeatIndexes = measureDownbeats(audio, f.ticks, sr, opt.meter);
 
   // Fingerprint (needs the silence measurement).
   if (opt.fingerprint) measureFingerprint(audio, sr, f);
@@ -628,6 +628,7 @@ void usage(std::ostream& o) {
        "Options:\n"
        "  -b, --beats            include beat positions (seconds)\n"
        "  -d, --downbeats        include downbeatIndexes (indexes into beats); implies --beats\n"
+       "  -m, --meter N          beats per bar for --downbeats, 2..12 (default 4)\n"
        "  -w, --waveform[=BINS]  include BINS waveform peaks, 0..255 (default 150)\n"
        "  -p, --fingerprint      include a Chromaprint fingerprint of the first 120 s\n"
        "  -a, --array            print a JSON array even for a single file\n"
@@ -660,6 +661,14 @@ int main(int argc, char** argv) {
     }
     else if (a == "-p" || a == "--fingerprint") opt.fingerprint = true;
     else if (a == "-a" || a == "--array") opt.array = true;
+    else if (a == "-m" || a == "--meter") {
+      const auto n = i + 1 < argc ? parseNumber(argv[++i]) : std::nullopt;
+      if (!n || *n != std::floor(*n) || *n < 2 || *n > 12) {
+        std::cerr << "folksentia: --meter needs N, a whole number of beats per bar from 2 to 12\n";
+        return 2;
+      }
+      opt.meter = int(*n);
+    }
     else if (a == "-f" || a == "--fast") opt.rhythmMethod = "degara";
     else if (a == "-r" || a == "--sample-rate") {
       const auto hz = i + 1 < argc ? parseNumber(argv[++i]) : std::nullopt;
