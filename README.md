@@ -52,6 +52,7 @@ builddir/folksentia --fingerprint *.opus > fingerprints.json
 | `-w`, `--waveform[=BINS]` | include `waveform` with BINS peaks (default 150) |
 | `-p`, `--fingerprint` | include `fingerprint`, a Chromaprint fingerprint of the first 120 s |
 | `-a`, `--array` | print a JSON array even when only one file is given |
+| `-s`, `--silence-threshold DB` | frame power in dBFS below which a frame counts as silence, −150 to 0 (default −100) |
 | `-f`, `--fast` | use the faster `degara` beat tracker instead of `multifeature` (`bpm_confidence` is then always 0) |
 | `-r`, `--sample-rate HZ` | analysis sample rate: 8000, 16000, 32000, 44100 or 48000 (default 44100); tempo and beats are always analysed at 44100 Hz |
 
@@ -101,11 +102,19 @@ with three decimals, i.e. to the millisecond, however long the file is.
 
 `silence` (`schema` 1):
 
+- `thresholdDb`: a frame is silent when its mean power is below this many dB
+  relative to full scale (`--silence-threshold`, default −100).
 - `leadMs`: time before the first non-silent frame, in milliseconds.
 - `tailMs`: time after the last non-silent frame, in milliseconds.
 
 Frames are 512 samples long and advance by 256 samples, so each value is
 accurate to about 6 ms at 44.1 kHz. Both are `null` if the whole file is silent.
+
+The default of −100 dB only treats digital silence as silent: tape hiss, room
+tone or vinyl noise count as sound, so a field recording usually gets `leadMs`
+near 0. To measure the quiet before a tune starts, pass a threshold above the
+noise floor, e.g. `--silence-threshold -50`. A full-scale sine wave has a mean
+power of −3 dB.
 
 `loudness` (`schema` 1):
 

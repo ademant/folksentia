@@ -46,6 +46,7 @@ constexpr int kFingerprintVersion = 2;
 
 struct Options {
   Real sampleRate = 44100.;
+  Real silenceThresholdDb = -100;  // frame power below this is silence
   std::string rhythmMethod = "multifeature";
   bool beats = false;
   bool downbeats = false;
@@ -215,24 +216,35 @@ std::string jsonText(const std::string& s) {
   return s.empty() ? "null" : jsonString(s);
 }
 
-// Silence at start and end: time before the first and after the last
-// non-silent 512-sample frame (frames advance by 256 samples).
-void measureSilence(const std::vector<Real>& audio, Real sr, Features& f) {
+// Start of the first and end of the last non-silent 512-sample frame (frames
+// advance by 256 samples). A frame is silent when its mean power is below
+// `cutoff`. Unset when every frame is silent.
+std::optional<std::pair<size_t, size_t>> soundSpan(const std::vector<Real>& audio, Real cutoff) {
   const size_t frame = 512, hop = 256, n = audio.size();
-  bool found = false;
-  size_t first = 0, last = 0;
+  std::optional<std::pair<size_t, size_t>> span;
   for (size_t s = 0; s < n; s += hop) {
     const size_t e = std::min(n, s + frame);
     Real energy = 0;
     for (size_t k = s; k < e; ++k) energy += audio[k] * audio[k];
-    if (energy / Real(e - s) < SILENCE_CUTOFF) continue;  // as isSilent()
-    if (!found) first = s;
-    found = true;
-    last = e;
+    if (energy / Real(e - s) < cutoff) continue;
+    if (!span) span.emplace(s, e);
+    span->second = e;
   }
-  if (!found) return;  // all silent: unknown
-  f.leadMs = Real(first) / sr * 1000.;
-  f.tailMs = Real(n - last) / sr * 1000.;
+  return span;
+}
+
+// Digital silence: no frame above Essentia's silence cutoff (as isSilent()).
+bool isDigitalSilence(const std::vector<Real>& audio) {
+  return !soundSpan(audio, SILENCE_CUTOFF);
+}
+
+// Silence at start and end: time before the first and after the last frame
+// whose mean power is at least `thresholdDb` dBFS.
+void measureSilence(const std::vector<Real>& audio, Real sr, Real thresholdDb, Features& f) {
+  const auto span = soundSpan(audio, Real(std::pow(10., thresholdDb / 10.)));
+  if (!span) return;  // all silent: unknown
+  f.leadMs = Real(span->first) / sr * 1000.;
+  f.tailMs = Real(audio.size() - span->second) / sr * 1000.;
 }
 
 // `signal` resampled from rate `from` to rate `to`.
@@ -301,11 +313,10 @@ std::vector<int> measureWaveform(const std::vector<Real>& audio, int bins) {
   return out;
 }
 
-// Chromaprint fingerprint of the first kFingerprintSeconds. Unset for
-// digital silence or when Chromaprint gives no fingerprint (e.g. a file only
-// a few seconds long).
+// Chromaprint fingerprint of the first kFingerprintSeconds. Unset when
+// Chromaprint gives no fingerprint (e.g. a file only a few seconds long); the
+// caller skips digital silence.
 void measureFingerprint(const std::vector<Real>& audio, Real sr, Features& f) {
-  if (!f.leadMs) return;  // whole file is silent
   const size_t n = std::min(audio.size(), size_t(kFingerprintSeconds * sr));
   // Chromaprinter casts samples * 2^15 to int16 without clamping, so clip to
   // the int16 range first (decoded lossy audio can exceed full scale).
@@ -513,7 +524,7 @@ Features analyze(const std::string& file, const Options& opt) {
   }
 
   // Silence at start and end.
-  measureSilence(audio, sr, f);
+  measureSilence(audio, sr, opt.silenceThresholdDb, f);
 
   // Waveform.
   if (opt.waveformBins > 0) f.waveform = measureWaveform(audio, opt.waveformBins);
@@ -521,8 +532,8 @@ Features analyze(const std::string& file, const Options& opt) {
   // Downbeats (needs the beat ticks).
   if (opt.downbeats) f.downbeatIndexes = measureDownbeats(audio, f.ticks, sr, opt.meter);
 
-  // Fingerprint (needs the silence measurement).
-  if (opt.fingerprint) measureFingerprint(audio, sr, f);
+  // Fingerprint; none for digital silence.
+  if (opt.fingerprint && !isDigitalSilence(audio)) measureFingerprint(audio, sr, f);
 
   return f;
 }
@@ -548,6 +559,7 @@ void printFile(std::ostream& o, const std::string& file, const Features& f,
     << in << "\"dynamic_complexity\": " << jsonNum(f.dynamicComplexity) << ",\n"
     << in << "\"silence\": {\n"
     << in2 << "\"schema\": " << kSchema << ",\n"
+    << in2 << "\"thresholdDb\": " << jsonNum(opt.silenceThresholdDb) << ",\n"
     << in2 << "\"leadMs\": " << jsonNum(f.leadMs) << ",\n"
     << in2 << "\"tailMs\": " << jsonNum(f.tailMs) << "\n"
     << in << "},\n"
@@ -632,6 +644,8 @@ void usage(std::ostream& o) {
        "  -w, --waveform[=BINS]  include BINS waveform peaks, 0..255 (default 150)\n"
        "  -p, --fingerprint      include a Chromaprint fingerprint of the first 120 s\n"
        "  -a, --array            print a JSON array even for a single file\n"
+       "  -s, --silence-threshold DB\n"
+       "                         frame power (dBFS) below which a frame is silence (default -100)\n"
        "  -f, --fast             use the faster 'degara' beat tracker\n"
        "  -r, --sample-rate HZ   analysis sample rate: 8000, 16000, 32000, 44100\n"
        "                         or 48000 (default 44100)\n"
@@ -661,6 +675,14 @@ int main(int argc, char** argv) {
     }
     else if (a == "-p" || a == "--fingerprint") opt.fingerprint = true;
     else if (a == "-a" || a == "--array") opt.array = true;
+    else if (a == "-s" || a == "--silence-threshold") {
+      const auto db = i + 1 < argc ? parseNumber(argv[++i]) : std::nullopt;
+      if (!db || *db < -150 || *db > 0) {
+        std::cerr << "folksentia: --silence-threshold needs DB between -150 and 0\n";
+        return 2;
+      }
+      opt.silenceThresholdDb = Real(*db);
+    }
     else if (a == "-m" || a == "--meter") {
       const auto n = i + 1 < argc ? parseNumber(argv[++i]) : std::nullopt;
       if (!n || *n != std::floor(*n) || *n < 2 || *n > 12) {
