@@ -35,6 +35,16 @@ installed at the time `scripts/build-essentia.sh` runs. If you built Essentia
 before installing `libchromaprint-dev`, run the script again; until then
 `--fingerprint` exits with an error.
 
+To run the smoke tests (they synthesise small WAV files, so no test data is
+needed):
+
+```sh
+meson test -C builddir --print-errorlogs
+```
+
+Accuracy against public reference data is checked separately, see
+[`scripts/eval`](scripts/eval/README.md).
+
 ## Usage
 
 ```sh
@@ -48,10 +58,13 @@ builddir/folksentia --fingerprint *.opus > fingerprints.json
 |---|---|
 | `-b`, `--beats` | include beat positions (seconds) as `beats` |
 | `-d`, `--downbeats` | include `downbeatIndexes`; implies `--beats` |
+| `-m`, `--meter N` | beats per bar for `--downbeats`, 2 to 12 (default 4) |
 | `-w`, `--waveform[=BINS]` | include `waveform` with BINS peaks (default 150) |
 | `-p`, `--fingerprint` | include `fingerprint`, a Chromaprint fingerprint of the first 120 s |
+| `-a`, `--array` | print a JSON array even when only one file is given |
+| `-s`, `--silence-threshold DB` | frame power in dBFS below which a frame counts as silence, −150 to 0 (default −100) |
 | `-f`, `--fast` | use the faster `degara` beat tracker instead of `multifeature` (`bpm_confidence` is then always 0) |
-| `-r`, `--sample-rate HZ` | analysis sample rate (default 44100) |
+| `-r`, `--sample-rate HZ` | analysis sample rate: 8000, 16000, 32000, 44100 or 48000 (default 44100); tempo and beats are always analysed at 44100 Hz |
 
 Exit status is 0 when every file was analysed, 1 when any file failed (the
 other files are still printed), 2 for bad usage.
@@ -59,6 +72,8 @@ other files are still printed), 2 for bad usage.
 ## Output schema (version 1)
 
 Output is one object per file, or a JSON array when several files are given.
+Use `--array` to always get an array, so that the output type doesn't depend on
+how many files a glob matched.
 Every object has `"schema": 1`. Every field listed below is always present in
 its object; a field whose value is unknown is `null`, never missing. The
 exceptions are the fields that are only printed when their option is given:
@@ -79,10 +94,10 @@ Analysis object fields:
 | `file` | string | input path as given (see [File names](#file-names)) |
 | `file_base64` | string | only for paths that are not valid UTF-8: the exact path bytes, base64 |
 | `duration` | number | seconds |
-| `bpm`, `bpm_confidence` | number | tempo and its confidence (0 with `--fast`) |
-| `key`, `scale` | string | key and mode, `null` if unknown |
-| `key_strength` | number | key detection strength |
-| `tuning_frequency`, `tuning_cents` | number | reference A in Hz and deviation from 440 Hz |
+| `bpm`, `bpm_confidence` | number or `null` | tempo and its confidence (confidence is 0 with `--fast`); `null` when no tempo was found |
+| `key`, `scale` | string or `null` | key and mode, `null` if unknown |
+| `key_strength` | number or `null` | key detection strength |
+| `tuning_frequency`, `tuning_cents` | number or `null` | reference A in Hz and deviation from 440 Hz |
 | `replay_gain_db` | number | ReplayGain |
 | `loudness_db`, `dynamic_complexity` | number | Essentia's dynamic complexity and loudness |
 | `silence` | object | see below |
@@ -92,13 +107,28 @@ Analysis object fields:
 | `downbeatIndexes` | array of ints or `null` | `--downbeats` only; indexes into `beats` that start a bar |
 | `fingerprint` | object or `null` | `--fingerprint` only, see below |
 
+For digital silence (no frame above −100 dBFS) tempo, key and tuning are not
+measured: `bpm`, `bpm_confidence`, `key`, `scale`, `key_strength`,
+`tuning_frequency` and `tuning_cents` are `null` and `beats` is empty.
+
+Times in seconds (`duration`, `beats`, `fingerprint.durationSec`) are printed
+with three decimals, i.e. to the millisecond, however long the file is.
+
 `silence` (`schema` 1):
 
+- `thresholdDb`: a frame is silent when its mean power is below this many dB
+  relative to full scale (`--silence-threshold`, default −100).
 - `leadMs`: time before the first non-silent frame, in milliseconds.
 - `tailMs`: time after the last non-silent frame, in milliseconds.
 
 Frames are 512 samples long and advance by 256 samples, so each value is
 accurate to about 6 ms at 44.1 kHz. Both are `null` if the whole file is silent.
+
+The default of −100 dB only treats digital silence as silent: tape hiss, room
+tone or vinyl noise count as sound, so a field recording usually gets `leadMs`
+near 0. To measure the quiet before a tune starts, pass a threshold above the
+noise floor, e.g. `--silence-threshold -50`. A full-scale sine wave has a mean
+power of −3 dB.
 
 `loudness` (`schema` 1):
 
@@ -115,9 +145,10 @@ file is measured as dual mono (the same signal on both channels). Both values ar
 - `peaks`: array of `bins` integers 0..255. Each is the largest absolute sample in that bin, scaled so the loudest bin is 255.
 
 `downbeatIndexes` is a heuristic and is `null` when there is no clear bar
-structure, for example with fewer than 8 beats or when no bar phase is clearly
-louder than the others. It assumes 4/4 time. The bass (below 150 Hz) energy
-just after each beat is compared across the four possible bar phases. The
+structure, for example with fewer than two bars of beats or when no bar phase
+is clearly louder than the others. It assumes `--meter` beats per bar (default
+4, e.g. 3 for a waltz); it does not detect the meter. The bass (below 150 Hz)
+energy just after each beat is compared across the possible bar phases. The
 phase is chosen when its beats are at least 20% louder than the other beats.
 Treat the threshold as untuned until it has been checked on known files.
 

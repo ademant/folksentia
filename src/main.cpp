@@ -15,6 +15,7 @@
 #include <cstdio>
 #include <iomanip>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <sstream>
@@ -29,6 +30,9 @@ namespace {
 
 constexpr int kSchema = 1;
 
+// Sample rate RhythmExtractor2013 is designed for.
+constexpr Real kRhythmRate = 44100;
+
 // Fingerprint the first kFingerprintSeconds of audio, like fpcalc's default.
 // Fixed so that fingerprints from different runs compare.
 constexpr Real kFingerprintSeconds = 120;
@@ -42,21 +46,26 @@ constexpr int kFingerprintVersion = 2;
 
 struct Options {
   Real sampleRate = 44100.;
+  Real silenceThresholdDb = -100;  // frame power below this is silence
   std::string rhythmMethod = "multifeature";
   bool beats = false;
   bool downbeats = false;
   int waveformBins = 0;  // 0 = no waveform
   bool fingerprint = false;
+  bool array = false;  // always print a JSON array
+  int meter = 4;       // beats per bar, for downbeats
   std::vector<std::string> files;
 };
 
 struct Features {
   Real duration = 0;
-  Real bpm = 0, bpmConfidence = 0;
+  // Tempo, key and tuning are unset when they could not be measured (digital
+  // silence, no tempo found, no frame for the tuning estimate).
+  std::optional<Real> bpm, bpmConfidence;
   std::vector<Real> ticks;
   std::string key, scale;
-  Real keyStrength = 0;
-  Real tuningFrequency = 0, tuningCents = 0;
+  std::optional<Real> keyStrength;
+  std::optional<Real> tuningFrequency, tuningCents;
   Real replayGain = 0, loudness = 0, dynamicComplexity = 0;
 
   // Silence at start and end; unset when the file has no non-silent frame.
@@ -191,6 +200,15 @@ std::string jsonNum(Real v) {
   return o.str();
 }
 
+// Time in seconds with fixed millisecond resolution, or null when not finite.
+// (Significant digits would lose resolution as times grow.)
+std::string jsonSeconds(Real v) {
+  if (!std::isfinite(v)) return "null";
+  std::ostringstream o;
+  o << std::fixed << std::setprecision(3) << v;
+  return o.str();
+}
+
 std::string jsonNum(const std::optional<Real>& v) {
   return v ? jsonNum(*v) : "null";
 }
@@ -200,23 +218,81 @@ std::string jsonText(const std::string& s) {
   return s.empty() ? "null" : jsonString(s);
 }
 
-// Silence at start and end: time before the first and after the last
-// non-silent 512-sample frame (frames advance by 256 samples).
-void measureSilence(const std::vector<Real>& audio, Real sr, Features& f) {
+// Start of the first and end of the last non-silent 512-sample frame (frames
+// advance by 256 samples). A frame is silent when its mean power is below
+// `cutoff`. Unset when every frame is silent.
+std::optional<std::pair<size_t, size_t>> soundSpan(const std::vector<Real>& audio, Real cutoff) {
   const size_t frame = 512, hop = 256, n = audio.size();
-  bool found = false;
-  size_t first = 0, last = 0;
+  std::optional<std::pair<size_t, size_t>> span;
   for (size_t s = 0; s < n; s += hop) {
     const size_t e = std::min(n, s + frame);
-    std::vector<Real> seg(audio.begin() + s, audio.begin() + e);
-    if (isSilent(seg)) continue;
-    if (!found) first = s;
-    found = true;
-    last = e;
+    Real energy = 0;
+    for (size_t k = s; k < e; ++k) energy += audio[k] * audio[k];
+    if (energy / Real(e - s) < cutoff) continue;
+    if (!span) span.emplace(s, e);
+    span->second = e;
   }
-  if (!found) return;  // all silent: unknown
-  f.leadMs = Real(first) / sr * 1000.;
-  f.tailMs = Real(n - last) / sr * 1000.;
+  return span;
+}
+
+// Digital silence: no frame above Essentia's silence cutoff (as isSilent()).
+bool isDigitalSilence(const std::vector<Real>& audio) {
+  return !soundSpan(audio, SILENCE_CUTOFF);
+}
+
+// Silence at start and end: time before the first and after the last frame
+// whose mean power is at least `thresholdDb` dBFS.
+void measureSilence(const std::vector<Real>& audio, Real sr, Real thresholdDb, Features& f) {
+  const auto span = soundSpan(audio, Real(std::pow(10., thresholdDb / 10.)));
+  if (!span) return;  // all silent: unknown
+  f.leadMs = Real(span->first) / sr * 1000.;
+  f.tailMs = Real(audio.size() - span->second) / sr * 1000.;
+}
+
+// `signal` resampled from rate `from` to rate `to`.
+std::vector<Real> resample(std::vector<Real> signal, Real from, Real to) {
+  if (from == to) return signal;
+  std::vector<Real> out;
+  auto rs = make("Resample", "inputSampleRate", from, "outputSampleRate", to);
+  rs->input("signal").set(signal);
+  rs->output("signal").set(out);
+  rs->compute();
+  return out;
+}
+
+// EBU R128 integrated loudness and true peak of the stereo signal at the
+// file's own sample rate.
+void measureLoudness(const std::vector<StereoSample>& stereo, Real rate, Features& f) {
+  {
+    auto ebu = make("LoudnessEBUR128", "sampleRate", rate);
+    std::vector<Real> momentary, shortTerm;
+    Real loudnessRange = 0;
+    ebu->input("signal").set(stereo);
+    ebu->output("momentaryLoudness").set(momentary);
+    ebu->output("shortTermLoudness").set(shortTerm);
+    ebu->output("integratedLoudness").set(f.integratedLufs.emplace());
+    ebu->output("loudnessRange").set(loudnessRange);
+    ebu->compute();
+    // Nothing passed the -70 LUFS absolute gate (e.g. digital silence): Essentia
+    // reports the gate itself, but BS.1770 integrated loudness is undefined.
+    if (*f.integratedLufs <= -70) f.integratedLufs.reset();
+  }
+
+  // One channel at a time, through a single buffer.
+  Real peak = 0;
+  std::vector<Real> channel(stereo.size()), out, locations;
+  for (int c = 0; c < 2; ++c) {
+    for (size_t i = 0; i < stereo.size(); ++i) channel[i] = c ? stereo[i].second : stereo[i].first;
+    auto tp = make("TruePeakDetector", "sampleRate", rate);
+    locations.clear();
+    tp->input("signal").set(channel);
+    tp->output("output").set(out);
+    tp->output("peakLocations").set(locations);
+    tp->compute();
+    for (Real v : out) peak = std::max(peak, std::abs(v));
+  }
+  if (peak > 0) f.truePeakDbtp = 20. * std::log10(peak);
+  else f.truePeakDbtp.reset();  // digital silence: unknown
 }
 
 // Peak per bin, 0..255, normalised to the loudest bin.
@@ -239,15 +315,10 @@ std::vector<int> measureWaveform(const std::vector<Real>& audio, int bins) {
   return out;
 }
 
-// Bar starts from the beat ticks. Each beat is scored by the energy of the
-// bass (below 150 Hz) just after it. Each of the four possible bar phases is
-// scored by how much louder its beats are than the others; the loudest phase
-// wins if it is clearly louder. Returns nothing when there is no clear phase.
-// Chromaprint fingerprint of the first kFingerprintSeconds. Unset for
-// digital silence or when Chromaprint gives no fingerprint (e.g. a file only
-// a few seconds long).
+// Chromaprint fingerprint of the first kFingerprintSeconds. Unset when
+// Chromaprint gives no fingerprint (e.g. a file only a few seconds long); the
+// caller skips digital silence.
 void measureFingerprint(const std::vector<Real>& audio, Real sr, Features& f) {
-  if (!f.leadMs) return;  // whole file is silent
   const size_t n = std::min(audio.size(), size_t(kFingerprintSeconds * sr));
   // Chromaprinter casts samples * 2^15 to int16 without clamping, so clip to
   // the int16 range first (decoded lossy audio can exceed full scale).
@@ -274,12 +345,15 @@ void measureFingerprint(const std::vector<Real>& audio, Real sr, Features& f) {
   }
 }
 
+// Bar starts from the beat ticks. Each beat is scored by the energy of the
+// bass (below 150 Hz) just after it. Each of the `meter` possible bar phases is
+// scored by how much louder its beats are than the others; the loudest phase
+// wins if it is clearly louder. Returns nothing when there is no clear phase.
 std::optional<std::vector<int>> measureDownbeats(const std::vector<Real>& audio,
                                                  const std::vector<Real>& ticks,
-                                                 Real sr) {
-  constexpr int kMeter = 4;
+                                                 Real sr, int meter) {
   constexpr Real kMinContrast = 1.2;  // phase energy / energy of other beats
-  if (ticks.size() < size_t(2 * kMeter) || audio.empty()) return std::nullopt;
+  if (ticks.size() < size_t(2 * meter) || audio.empty()) return std::nullopt;
 
   std::vector<Real> bass;
   {
@@ -308,11 +382,11 @@ std::optional<std::vector<int>> measureDownbeats(const std::vector<Real>& audio,
 
   Real bestContrast = 0;
   int bestPhase = -1;
-  for (int p = 0; p < kMeter; ++p) {
+  for (int p = 0; p < meter; ++p) {
     Real sumIn = 0, sumOut = 0;
     size_t nIn = 0, nOut = 0;
     for (size_t i = 0; i < accent.size(); ++i) {
-      if (int(i % kMeter) == p) { sumIn += accent[i]; ++nIn; }
+      if (int(i % meter) == p) { sumIn += accent[i]; ++nIn; }
       else { sumOut += accent[i]; ++nOut; }
     }
     if (nIn == 0 || nOut == 0) continue;
@@ -323,7 +397,7 @@ std::optional<std::vector<int>> measureDownbeats(const std::vector<Real>& audio,
   if (bestPhase < 0 || bestContrast < kMinContrast) return std::nullopt;
 
   std::vector<int> out;
-  for (size_t i = bestPhase; i < ticks.size(); i += kMeter) out.push_back(int(i));
+  for (size_t i = bestPhase; i < ticks.size(); i += meter) out.push_back(int(i));
   return out;
 }
 
@@ -331,41 +405,84 @@ Features analyze(const std::string& file, const Options& opt) {
   Features f;
   const Real sr = opt.sampleRate;
 
-  // Mono analysis signal at the analysis rate.
-  std::vector<Real> audio;
+  // Decode once, at the file's own sample rate.
+  std::vector<StereoSample> stereo;
+  Real nativeRate = 0;
+  int channels = 0;
   {
-    auto loader = make("MonoLoader", "filename", file, "sampleRate", sr);
-    loader->output("audio").set(audio);
+    int bitRate = 0;
+    std::string md5, codec;
+    // Standard-mode algorithms require every output to be bound.
+    auto loader = make("AudioLoader", "filename", file);
+    loader->output("audio").set(stereo);
+    loader->output("sampleRate").set(nativeRate);
+    loader->output("numberChannels").set(channels);
+    loader->output("md5").set(md5);
+    loader->output("bit_rate").set(bitRate);
+    loader->output("codec").set(codec);
     loader->compute();
+  }
+  if (stereo.empty() || nativeRate <= 0) throw EssentiaException("no audio decoded from ", file);
+  if (channels == 1) {  // mono: play it as dual mono
+    for (auto& s : stereo) s.second = s.first;
+  }
+
+  measureLoudness(stereo, nativeRate, f);
+
+  // Mono analysis signal at the analysis rate, as MonoLoader makes it.
+  // RhythmExtractor2013 assumes 44.1 kHz input, so it gets its own copy at
+  // that rate when the analysis rate differs.
+  std::vector<Real> audio, rhythmAudio;
+  {
+    std::vector<Real> mono;
+    auto mixer = make("MonoMixer");
+    mixer->input("audio").set(stereo);
+    mixer->input("numberChannels").set(channels);
+    mixer->output("audio").set(mono);
+    mixer->compute();
+    stereo.clear();
+    stereo.shrink_to_fit();
+    if (sr != kRhythmRate) rhythmAudio = resample(mono, nativeRate, kRhythmRate);
+    audio = resample(std::move(mono), nativeRate, sr);
   }
   if (audio.empty()) throw EssentiaException("no audio decoded from ", file);
   f.duration = audio.size() / sr;
 
-  // Tempo + beats. RhythmExtractor2013 assumes 44.1 kHz input.
-  {
+  // Digital silence has no tempo, key or tuning: leave them unknown.
+  const bool silent = isDigitalSilence(audio);
+
+  // Tempo + beats, at 44.1 kHz.
+  if (!silent) {
     auto rhythm = make("RhythmExtractor2013", "method", opt.rhythmMethod);
+    Real bpm = 0, confidence = 0;
     std::vector<Real> estimates, intervals;
-    rhythm->input("signal").set(audio);
-    rhythm->output("bpm").set(f.bpm);
+    rhythm->input("signal").set(sr == kRhythmRate ? audio : rhythmAudio);
+    rhythm->output("bpm").set(bpm);
     rhythm->output("ticks").set(f.ticks);
-    rhythm->output("confidence").set(f.bpmConfidence);
+    rhythm->output("confidence").set(confidence);
     rhythm->output("estimates").set(estimates);
     rhythm->output("bpmIntervals").set(intervals);
     rhythm->compute();
+    if (bpm > 0) {  // 0: no tempo found
+      f.bpm = bpm;
+      f.bpmConfidence = confidence;
+    }
   }
+  rhythmAudio.clear();
+  rhythmAudio.shrink_to_fit();
 
   // Key / mode.
-  {
+  if (!silent) {
     auto key = make("KeyExtractor", "sampleRate", sr);
     key->input("audio").set(audio);
     key->output("key").set(f.key);
     key->output("scale").set(f.scale);
-    key->output("strength").set(f.keyStrength);
+    key->output("strength").set(f.keyStrength.emplace());
     key->compute();
   }
 
   // Tuning frequency (interesting for non-440 Hz folk instruments).
-  {
+  if (!silent) {
     const int frameSize = 4096, hopSize = 2048;
     auto cutter = make("FrameCutter", "frameSize", frameSize, "hopSize", hopSize,
                        "startFromZero", true);
@@ -388,8 +505,10 @@ Features analyze(const std::string& file, const Options& opt) {
     peaks->output("magnitudes").set(mags);
     tuning->input("frequencies").set(freqs);
     tuning->input("magnitudes").set(mags);
-    tuning->output("tuningFrequency").set(f.tuningFrequency);
-    tuning->output("tuningCents").set(f.tuningCents);
+    Real frequency = 0, cents = 0;
+    tuning->output("tuningFrequency").set(frequency);
+    tuning->output("tuningCents").set(cents);
+    bool measured = false;
 
     for (;;) {
       cutter->compute();
@@ -399,6 +518,11 @@ Features analyze(const std::string& file, const Options& opt) {
       spectrum->compute();
       peaks->compute();
       tuning->compute();  // accumulates; output is the running estimate
+      measured = true;
+    }
+    if (measured) {
+      f.tuningFrequency = frequency;
+      f.tuningCents = cents;
     }
   }
 
@@ -416,73 +540,17 @@ Features analyze(const std::string& file, const Options& opt) {
     dc->compute();
   }
 
-  // EBU R128 and true peak need stereo at the file's own sample rate, so the
-  // file is decoded a second time here.
-  {
-    std::vector<StereoSample> stereo;
-    Real nativeRate = 0;
-    int channels = 0, bitRate = 0;
-    std::string md5, codec;
-    // Standard-mode algorithms require every output to be bound.
-    auto loader = make("AudioLoader", "filename", file);
-    loader->output("audio").set(stereo);
-    loader->output("sampleRate").set(nativeRate);
-    loader->output("numberChannels").set(channels);
-    loader->output("md5").set(md5);
-    loader->output("bit_rate").set(bitRate);
-    loader->output("codec").set(codec);
-    loader->compute();
-    if (stereo.empty() || nativeRate <= 0) throw EssentiaException("no stereo audio decoded from ", file);
-
-    if (channels == 1) {  // mono: play it as dual mono
-      for (auto& s : stereo) s.second = s.first;
-    }
-
-    auto ebu = make("LoudnessEBUR128", "sampleRate", nativeRate);
-    std::vector<Real> momentary, shortTerm;
-    Real loudnessRange = 0;
-    ebu->input("signal").set(stereo);
-    ebu->output("momentaryLoudness").set(momentary);
-    ebu->output("shortTermLoudness").set(shortTerm);
-    ebu->output("integratedLoudness").set(f.integratedLufs.emplace());
-    ebu->output("loudnessRange").set(loudnessRange);
-    ebu->compute();
-    // Nothing passed the -70 LUFS absolute gate (e.g. digital silence): Essentia
-    // reports the gate itself, but BS.1770 integrated loudness is undefined.
-    if (*f.integratedLufs <= -70) f.integratedLufs.reset();
-
-    std::vector<Real> left, right;
-    left.reserve(stereo.size());
-    right.reserve(stereo.size());
-    for (const auto& s : stereo) { left.push_back(s.first); right.push_back(s.second); }
-    stereo.clear();
-    stereo.shrink_to_fit();
-
-    Real peak = 0;
-    for (const auto* ch : {&left, &right}) {
-      auto tp = make("TruePeakDetector", "sampleRate", nativeRate);
-      std::vector<Real> out, locations;
-      tp->input("signal").set(*ch);
-      tp->output("output").set(out);
-      tp->output("peakLocations").set(locations);
-      tp->compute();
-      for (Real v : out) peak = std::max(peak, std::abs(v));
-    }
-    if (peak > 0) f.truePeakDbtp = 20. * std::log10(peak);
-    else f.truePeakDbtp.reset();  // digital silence: unknown
-  }
-
   // Silence at start and end.
-  measureSilence(audio, sr, f);
+  measureSilence(audio, sr, opt.silenceThresholdDb, f);
 
   // Waveform.
   if (opt.waveformBins > 0) f.waveform = measureWaveform(audio, opt.waveformBins);
 
   // Downbeats (needs the beat ticks).
-  if (opt.downbeats) f.downbeatIndexes = measureDownbeats(audio, f.ticks, sr);
+  if (opt.downbeats) f.downbeatIndexes = measureDownbeats(audio, f.ticks, sr, opt.meter);
 
-  // Fingerprint (needs the silence measurement).
-  if (opt.fingerprint) measureFingerprint(audio, sr, f);
+  // Fingerprint; none for digital silence.
+  if (opt.fingerprint && !isDigitalSilence(audio)) measureFingerprint(audio, sr, f);
 
   return f;
 }
@@ -495,7 +563,7 @@ void printFile(std::ostream& o, const std::string& file, const Features& f,
   o << indent << "{\n"
     << in << "\"schema\": " << kSchema << ",\n"
     << jsonFileMembers(file, in)
-    << in << "\"duration\": " << jsonNum(f.duration) << ",\n"
+    << in << "\"duration\": " << jsonSeconds(f.duration) << ",\n"
     << in << "\"bpm\": " << jsonNum(f.bpm) << ",\n"
     << in << "\"bpm_confidence\": " << jsonNum(f.bpmConfidence) << ",\n"
     << in << "\"key\": " << jsonText(f.key) << ",\n"
@@ -508,6 +576,7 @@ void printFile(std::ostream& o, const std::string& file, const Features& f,
     << in << "\"dynamic_complexity\": " << jsonNum(f.dynamicComplexity) << ",\n"
     << in << "\"silence\": {\n"
     << in2 << "\"schema\": " << kSchema << ",\n"
+    << in2 << "\"thresholdDb\": " << jsonNum(opt.silenceThresholdDb) << ",\n"
     << in2 << "\"leadMs\": " << jsonNum(f.leadMs) << ",\n"
     << in2 << "\"tailMs\": " << jsonNum(f.tailMs) << "\n"
     << in << "},\n"
@@ -526,7 +595,7 @@ void printFile(std::ostream& o, const std::string& file, const Features& f,
   }
   if (opt.beats) {
     o << ",\n" << in << "\"beats\": [";
-    for (size_t i = 0; i < f.ticks.size(); ++i) o << (i ? ", " : "") << jsonNum(f.ticks[i]);
+    for (size_t i = 0; i < f.ticks.size(); ++i) o << (i ? ", " : "") << jsonSeconds(f.ticks[i]);
     o << "]";
   }
   if (opt.downbeats) {
@@ -547,7 +616,7 @@ void printFile(std::ostream& o, const std::string& file, const Features& f,
         << in2 << "\"schema\": " << kSchema << ",\n"
         << in2 << "\"algorithm\": \"chromaprint\",\n"
         << in2 << "\"version\": " << kFingerprintVersion << ",\n"
-        << in2 << "\"durationSec\": " << jsonNum(f.fingerprintSeconds) << ",\n"
+        << in2 << "\"durationSec\": " << jsonSeconds(f.fingerprintSeconds) << ",\n"
         << in2 << "\"value\": " << jsonString(*f.fingerprint) << "\n"
         << in << "}";
     } else {
@@ -567,6 +636,18 @@ void printError(std::ostream& o, const std::string& file, const std::string& err
     << indent << "}";
 }
 
+// The whole of `s` as a finite number, or nothing.
+std::optional<double> parseNumber(const std::string& s) {
+  try {
+    size_t used = 0;
+    const double v = std::stod(s, &used);
+    if (used != s.size() || !std::isfinite(v)) return std::nullopt;
+    return v;
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
+}
+
 void usage(std::ostream& o) {
   o << "Usage: folksentia [options] FILE...\n"
        "\n"
@@ -576,10 +657,15 @@ void usage(std::ostream& o) {
        "Options:\n"
        "  -b, --beats            include beat positions (seconds)\n"
        "  -d, --downbeats        include downbeatIndexes (indexes into beats); implies --beats\n"
+       "  -m, --meter N          beats per bar for --downbeats, 2..12 (default 4)\n"
        "  -w, --waveform[=BINS]  include BINS waveform peaks, 0..255 (default 150)\n"
        "  -p, --fingerprint      include a Chromaprint fingerprint of the first 120 s\n"
+       "  -a, --array            print a JSON array even for a single file\n"
+       "  -s, --silence-threshold DB\n"
+       "                         frame power (dBFS) below which a frame is silence (default -100)\n"
        "  -f, --fast             use the faster 'degara' beat tracker\n"
-       "  -r, --sample-rate HZ   analysis sample rate (default 44100)\n"
+       "  -r, --sample-rate HZ   analysis sample rate: 8000, 16000, 32000, 44100\n"
+       "                         or 48000 (default 44100)\n"
        "  -h, --help             show this help\n";
 }
 
@@ -605,8 +691,34 @@ int main(int argc, char** argv) {
       }
     }
     else if (a == "-p" || a == "--fingerprint") opt.fingerprint = true;
+    else if (a == "-a" || a == "--array") opt.array = true;
+    else if (a == "-s" || a == "--silence-threshold") {
+      const auto db = i + 1 < argc ? parseNumber(argv[++i]) : std::nullopt;
+      if (!db || *db < -150 || *db > 0) {
+        std::cerr << "folksentia: --silence-threshold needs DB between -150 and 0\n";
+        return 2;
+      }
+      opt.silenceThresholdDb = Real(*db);
+    }
+    else if (a == "-m" || a == "--meter") {
+      const auto n = i + 1 < argc ? parseNumber(argv[++i]) : std::nullopt;
+      if (!n || *n != std::floor(*n) || *n < 2 || *n > 12) {
+        std::cerr << "folksentia: --meter needs N, a whole number of beats per bar from 2 to 12\n";
+        return 2;
+      }
+      opt.meter = int(*n);
+    }
     else if (a == "-f" || a == "--fast") opt.rhythmMethod = "degara";
-    else if ((a == "-r" || a == "--sample-rate") && i + 1 < argc) opt.sampleRate = std::stod(argv[++i]);
+    else if (a == "-r" || a == "--sample-rate") {
+      const auto hz = i + 1 < argc ? parseNumber(argv[++i]) : std::nullopt;
+      // The rates ReplayGain's EqualLoudness filter supports.
+      constexpr double kRates[] = {8000, 16000, 32000, 44100, 48000};
+      if (!hz || std::find(std::begin(kRates), std::end(kRates), *hz) == std::end(kRates)) {
+        std::cerr << "folksentia: --sample-rate needs HZ of 8000, 16000, 32000, 44100 or 48000\n";
+        return 2;
+      }
+      opt.sampleRate = Real(*hz);
+    }
     else if (a == "--") { for (++i; i < argc; ++i) opt.files.push_back(argv[i]); }
     else if (!a.empty() && a[0] == '-') { std::cerr << "unknown option: " << a << "\n"; usage(std::cerr); return 2; }
     else opt.files.push_back(a);
@@ -627,7 +739,7 @@ int main(int argc, char** argv) {
     }
   }
 
-  const bool many = opt.files.size() > 1;
+  const bool many = opt.array || opt.files.size() > 1;
   std::cout << std::setprecision(6);
   if (many) std::cout << "[\n";
   int rc = 0;
