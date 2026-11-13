@@ -30,6 +30,9 @@ namespace {
 
 constexpr int kSchema = 1;
 
+// Sample rate RhythmExtractor2013 is designed for.
+constexpr Real kRhythmRate = 44100;
+
 // Fingerprint the first kFingerprintSeconds of audio, like fpcalc's default.
 // Fixed so that fingerprints from different runs compare.
 constexpr Real kFingerprintSeconds = 120;
@@ -404,7 +407,9 @@ Features analyze(const std::string& file, const Options& opt) {
   measureLoudness(stereo, nativeRate, f);
 
   // Mono analysis signal at the analysis rate, as MonoLoader makes it.
-  std::vector<Real> audio;
+  // RhythmExtractor2013 assumes 44.1 kHz input, so it gets its own copy at
+  // that rate when the analysis rate differs.
+  std::vector<Real> audio, rhythmAudio;
   {
     std::vector<Real> mono;
     auto mixer = make("MonoMixer");
@@ -414,22 +419,25 @@ Features analyze(const std::string& file, const Options& opt) {
     mixer->compute();
     stereo.clear();
     stereo.shrink_to_fit();
+    if (sr != kRhythmRate) rhythmAudio = resample(mono, nativeRate, kRhythmRate);
     audio = resample(std::move(mono), nativeRate, sr);
   }
   if (audio.empty()) throw EssentiaException("no audio decoded from ", file);
   f.duration = audio.size() / sr;
 
-  // Tempo + beats. RhythmExtractor2013 assumes 44.1 kHz input.
+  // Tempo + beats, at 44.1 kHz.
   {
     auto rhythm = make("RhythmExtractor2013", "method", opt.rhythmMethod);
     std::vector<Real> estimates, intervals;
-    rhythm->input("signal").set(audio);
+    rhythm->input("signal").set(sr == kRhythmRate ? audio : rhythmAudio);
     rhythm->output("bpm").set(f.bpm);
     rhythm->output("ticks").set(f.ticks);
     rhythm->output("confidence").set(f.bpmConfidence);
     rhythm->output("estimates").set(estimates);
     rhythm->output("bpmIntervals").set(intervals);
     rhythm->compute();
+    rhythmAudio.clear();
+    rhythmAudio.shrink_to_fit();
   }
 
   // Key / mode.

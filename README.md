@@ -51,7 +51,7 @@ builddir/folksentia --fingerprint *.opus > fingerprints.json
 | `-w`, `--waveform[=BINS]` | include `waveform` with BINS peaks (default 150) |
 | `-p`, `--fingerprint` | include `fingerprint`, a Chromaprint fingerprint of the first 120 s |
 | `-f`, `--fast` | use the faster `degara` beat tracker instead of `multifeature` (`bpm_confidence` is then always 0) |
-| `-r`, `--sample-rate HZ` | analysis sample rate: 8000, 16000, 32000, 44100 or 48000 (default 44100) |
+| `-r`, `--sample-rate HZ` | analysis sample rate: 8000, 16000, 32000, 44100 or 48000 (default 44100); tempo and beats are always analysed at 44100 Hz |
 
 Exit status is 0 when every file was analysed, 1 when any file failed (the
 other files are still printed), 2 for bad usage.
