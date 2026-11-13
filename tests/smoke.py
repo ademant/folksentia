@@ -159,6 +159,19 @@ def main():
     check(p.returncode == 0 and out["file"].endswith("caf�.wav")
           and base64.b64decode(out["file_base64"]) == raw, "non-UTF-8 name: file and file_base64")
 
+    # True peak is measured in blocks of 2^19 samples: a peak on a block
+    # boundary must read the same as one inside a block.
+    peaks = []
+    for name, centre in (("tp-inside.wav", 200000), ("tp-boundary.wav", 1 << 19)):
+        burst = [0.0] * (1 << 20)
+        for k in range(centre - 2000, centre + 2000):
+            burst[k] = 0.5 * math.sin(math.pi / 2 * k + math.pi / 4)  # fs/4 at 45°: inter-sample peaks
+        write_wav(j(name), 48000, 1, burst)
+        rc, out, _, _ = run(j(name))
+        peaks.append(out["loudness"]["truePeakDbtp"])
+    check(near(peaks[0], -6.0, 0.2) and near(peaks[1], peaks[0], 0.01),
+          f"true peak across a block boundary ({peaks[1]}) equals inside ({peaks[0]})")
+
     # Version.
     p = subprocess.run([BINARY, "--version"], capture_output=True, text=True)
     lines = p.stdout.splitlines()

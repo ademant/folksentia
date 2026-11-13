@@ -280,18 +280,33 @@ void measureLoudness(const std::vector<StereoSample>& stereo, Real rate, Feature
     if (*f.integratedLufs <= -70) f.integratedLufs.reset();
   }
 
-  // One channel at a time, through a single buffer.
+  // TruePeakDetector holds the whole 4x oversampled signal (and copies it), so
+  // each channel goes through it in blocks. The resampler is stateless; each
+  // block is extended by kMargin samples on both sides, and the oversampled
+  // samples of those margins, distorted by the cut, are left out.
+  constexpr size_t kBlock = size_t(1) << 19, kMargin = 4096;
+  constexpr int kOversampling = 4;  // TruePeakDetector's default
+  const size_t n = stereo.size();
+  auto tp = make("TruePeakDetector", "sampleRate", rate, "oversamplingFactor", kOversampling);
   Real peak = 0;
-  std::vector<Real> channel(stereo.size()), out, locations;
+  std::vector<Real> block, out, locations;
   for (int c = 0; c < 2; ++c) {
-    for (size_t i = 0; i < stereo.size(); ++i) channel[i] = c ? stereo[i].second : stereo[i].first;
-    auto tp = make("TruePeakDetector", "sampleRate", rate);
-    locations.clear();
-    tp->input("signal").set(channel);
-    tp->output("output").set(out);
-    tp->output("peakLocations").set(locations);
-    tp->compute();
-    for (Real v : out) peak = std::max(peak, std::abs(v));
+    for (size_t s = 0; s < n; s += kBlock) {
+      const size_t a = s > kMargin ? s - kMargin : 0;
+      const size_t e = std::min(n, s + kBlock);
+      const size_t b = std::min(n, e + kMargin);
+      block.resize(b - a);
+      for (size_t i = a; i < b; ++i) block[i - a] = c ? stereo[i].second : stereo[i].first;
+      out.clear();
+      locations.clear();
+      tp->input("signal").set(block);
+      tp->output("output").set(out);
+      tp->output("peakLocations").set(locations);
+      tp->compute();
+      const size_t from = (s - a) * kOversampling;
+      const size_t to = std::min(out.size(), (e - a) * kOversampling);
+      for (size_t i = from; i < to; ++i) peak = std::max(peak, std::abs(out[i]));
+    }
   }
   if (peak > 0) f.truePeakDbtp = 20. * std::log10(peak);
   else f.truePeakDbtp.reset();  // digital silence: unknown
