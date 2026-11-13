@@ -1,0 +1,12 @@
+{
+  "about": "Folk dance tunes labelled by hand. Only labels, no audio: point score_folk.py at a local copy. dance, meter and grouping come from the person who knows the tunes; bar_sec was measured from the onset autocorrelation (the strongest period matching the labelled meter) and is approximate (about 1 %). grouping lists the beats of one bar in units of 'unit'; it is compared as positions within the bar, so neither the unit nor the bar start matters.",
+  "tunes": [
+    {"file": "11_Hanter_dro.opus", "dance": "hanter dro", "meter": "6/4", "grouping": [4, 2], "unit": "quarter", "bar_sec": 1.916},
+    {"file": "05_A_pa_oen_me_Bihan.opus", "dance": "hanter dro", "meter": "6/4", "grouping": [4, 2], "unit": "quarter", "bar_sec": 1.962},
+    {"file": "04.Cest_pour_te_dire_adieu.opus", "dance": "hanter dro", "notes": "sung a cappella", "meter": "6/4", "grouping": [4, 2], "unit": "quarter", "bar_sec": 2.08},
+    {"file": "05_Ciel_rouge_(vals_11).opus", "dance": "valse à 11", "meter": "11/8", "grouping": [3, 3, 2, 3], "unit": "eighth", "bar_sec": 3.088},
+    {"file": "04_Miroir.opus", "dance": "valse", "meter": "3/4", "grouping": [1, 1, 1], "unit": "quarter", "bar_sec": 1.579},
+    {"file": "06_Ar_Vuhez_(Mazurka).opus", "dance": "mazurka", "meter": "3/4", "grouping": [1, 1, 1], "unit": "quarter", "bar_sec": 1.219},
+    {"file": "008_Mazurka_Mañana.opus", "dance": "mazurka", "notes": "accelerando, bar 1.46 s at the start to 1.35 s near the end", "meter": "3/4", "grouping": [1, 1, 1], "unit": "quarter", "bar_sec": 1.40, "bar_tolerance": 0.06}
+  ]
+}

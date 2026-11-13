@@ -47,6 +47,22 @@ skips files already analysed, so interrupted runs resume. Arguments after
 After changing folksentia, delete the variant's results directory (or use a
 new variant name) and run again.
 
+## Folk dance labels
+
+`folk_labels.json` labels a few folk dance tunes (hanter dro in 6/4 with 4+2
+steps, a valse à 11 in 3+3+2+3, valses and mazurkas in 3/4). It holds labels
+only; point the scorer at your own copy of the files:
+
+```sh
+python3 score_folk.py --music-root ~/Musik
+```
+
+It checks folksentia's `rhythm.barSec` against the labelled bar length (4 %
+tolerance), and `rhythm.grouping` against the labelled grouping as beat
+positions within the bar, for any bar start. The beat tracker's `bpm` is shown
+for comparison. Add tunes by appending to the file: dance, meter and grouping
+from someone who knows the tune, the bar length measured or counted by hand.
+
 ## Ballroom metrics
 
 All in percent, averaged per dance style and overall:
