@@ -51,6 +51,7 @@ struct Options {
   bool downbeats = false;
   int waveformBins = 0;  // 0 = no waveform
   bool fingerprint = false;
+  bool array = false;  // always print a JSON array
   std::vector<std::string> files;
 };
 
@@ -629,6 +630,7 @@ void usage(std::ostream& o) {
        "  -d, --downbeats        include downbeatIndexes (indexes into beats); implies --beats\n"
        "  -w, --waveform[=BINS]  include BINS waveform peaks, 0..255 (default 150)\n"
        "  -p, --fingerprint      include a Chromaprint fingerprint of the first 120 s\n"
+       "  -a, --array            print a JSON array even for a single file\n"
        "  -f, --fast             use the faster 'degara' beat tracker\n"
        "  -r, --sample-rate HZ   analysis sample rate: 8000, 16000, 32000, 44100\n"
        "                         or 48000 (default 44100)\n"
@@ -657,6 +659,7 @@ int main(int argc, char** argv) {
       }
     }
     else if (a == "-p" || a == "--fingerprint") opt.fingerprint = true;
+    else if (a == "-a" || a == "--array") opt.array = true;
     else if (a == "-f" || a == "--fast") opt.rhythmMethod = "degara";
     else if (a == "-r" || a == "--sample-rate") {
       const auto hz = i + 1 < argc ? parseNumber(argv[++i]) : std::nullopt;
@@ -688,7 +691,7 @@ int main(int argc, char** argv) {
     }
   }
 
-  const bool many = opt.files.size() > 1;
+  const bool many = opt.array || opt.files.size() > 1;
   std::cout << std::setprecision(6);
   if (many) std::cout << "[\n";
   int rc = 0;

@@ -50,6 +50,7 @@ builddir/folksentia --fingerprint *.opus > fingerprints.json
 | `-d`, `--downbeats` | include `downbeatIndexes`; implies `--beats` |
 | `-w`, `--waveform[=BINS]` | include `waveform` with BINS peaks (default 150) |
 | `-p`, `--fingerprint` | include `fingerprint`, a Chromaprint fingerprint of the first 120 s |
+| `-a`, `--array` | print a JSON array even when only one file is given |
 | `-f`, `--fast` | use the faster `degara` beat tracker instead of `multifeature` (`bpm_confidence` is then always 0) |
 | `-r`, `--sample-rate HZ` | analysis sample rate: 8000, 16000, 32000, 44100 or 48000 (default 44100); tempo and beats are always analysed at 44100 Hz |
 
@@ -59,6 +60,8 @@ other files are still printed), 2 for bad usage.
 ## Output schema (version 1)
 
 Output is one object per file, or a JSON array when several files are given.
+Use `--array` to always get an array, so that the output type doesn't depend on
+how many files a glob matched.
 Every object has `"schema": 1`. Every field listed below is always present in
 its object; a field whose value is unknown is `null`, never missing. The
 exceptions are the fields that are only printed when their option is given:
