@@ -209,8 +209,9 @@ void measureSilence(const std::vector<Real>& audio, Real sr, Features& f) {
   size_t first = 0, last = 0;
   for (size_t s = 0; s < n; s += hop) {
     const size_t e = std::min(n, s + frame);
-    std::vector<Real> seg(audio.begin() + s, audio.begin() + e);
-    if (isSilent(seg)) continue;
+    Real energy = 0;
+    for (size_t k = s; k < e; ++k) energy += audio[k] * audio[k];
+    if (energy / Real(e - s) < SILENCE_CUTOFF) continue;  // as isSilent()
     if (!found) first = s;
     found = true;
     last = e;
@@ -218,6 +219,52 @@ void measureSilence(const std::vector<Real>& audio, Real sr, Features& f) {
   if (!found) return;  // all silent: unknown
   f.leadMs = Real(first) / sr * 1000.;
   f.tailMs = Real(n - last) / sr * 1000.;
+}
+
+// `signal` resampled from rate `from` to rate `to`.
+std::vector<Real> resample(std::vector<Real> signal, Real from, Real to) {
+  if (from == to) return signal;
+  std::vector<Real> out;
+  auto rs = make("Resample", "inputSampleRate", from, "outputSampleRate", to);
+  rs->input("signal").set(signal);
+  rs->output("signal").set(out);
+  rs->compute();
+  return out;
+}
+
+// EBU R128 integrated loudness and true peak of the stereo signal at the
+// file's own sample rate.
+void measureLoudness(const std::vector<StereoSample>& stereo, Real rate, Features& f) {
+  {
+    auto ebu = make("LoudnessEBUR128", "sampleRate", rate);
+    std::vector<Real> momentary, shortTerm;
+    Real loudnessRange = 0;
+    ebu->input("signal").set(stereo);
+    ebu->output("momentaryLoudness").set(momentary);
+    ebu->output("shortTermLoudness").set(shortTerm);
+    ebu->output("integratedLoudness").set(f.integratedLufs.emplace());
+    ebu->output("loudnessRange").set(loudnessRange);
+    ebu->compute();
+    // Nothing passed the -70 LUFS absolute gate (e.g. digital silence): Essentia
+    // reports the gate itself, but BS.1770 integrated loudness is undefined.
+    if (*f.integratedLufs <= -70) f.integratedLufs.reset();
+  }
+
+  // One channel at a time, through a single buffer.
+  Real peak = 0;
+  std::vector<Real> channel(stereo.size()), out, locations;
+  for (int c = 0; c < 2; ++c) {
+    for (size_t i = 0; i < stereo.size(); ++i) channel[i] = c ? stereo[i].second : stereo[i].first;
+    auto tp = make("TruePeakDetector", "sampleRate", rate);
+    locations.clear();
+    tp->input("signal").set(channel);
+    tp->output("output").set(out);
+    tp->output("peakLocations").set(locations);
+    tp->compute();
+    for (Real v : out) peak = std::max(peak, std::abs(v));
+  }
+  if (peak > 0) f.truePeakDbtp = 20. * std::log10(peak);
+  else f.truePeakDbtp.reset();  // digital silence: unknown
 }
 
 // Peak per bin, 0..255, normalised to the loudest bin.
@@ -332,12 +379,42 @@ Features analyze(const std::string& file, const Options& opt) {
   Features f;
   const Real sr = opt.sampleRate;
 
-  // Mono analysis signal at the analysis rate.
+  // Decode once, at the file's own sample rate.
+  std::vector<StereoSample> stereo;
+  Real nativeRate = 0;
+  int channels = 0;
+  {
+    int bitRate = 0;
+    std::string md5, codec;
+    // Standard-mode algorithms require every output to be bound.
+    auto loader = make("AudioLoader", "filename", file);
+    loader->output("audio").set(stereo);
+    loader->output("sampleRate").set(nativeRate);
+    loader->output("numberChannels").set(channels);
+    loader->output("md5").set(md5);
+    loader->output("bit_rate").set(bitRate);
+    loader->output("codec").set(codec);
+    loader->compute();
+  }
+  if (stereo.empty() || nativeRate <= 0) throw EssentiaException("no audio decoded from ", file);
+  if (channels == 1) {  // mono: play it as dual mono
+    for (auto& s : stereo) s.second = s.first;
+  }
+
+  measureLoudness(stereo, nativeRate, f);
+
+  // Mono analysis signal at the analysis rate, as MonoLoader makes it.
   std::vector<Real> audio;
   {
-    auto loader = make("MonoLoader", "filename", file, "sampleRate", sr);
-    loader->output("audio").set(audio);
-    loader->compute();
+    std::vector<Real> mono;
+    auto mixer = make("MonoMixer");
+    mixer->input("audio").set(stereo);
+    mixer->input("numberChannels").set(channels);
+    mixer->output("audio").set(mono);
+    mixer->compute();
+    stereo.clear();
+    stereo.shrink_to_fit();
+    audio = resample(std::move(mono), nativeRate, sr);
   }
   if (audio.empty()) throw EssentiaException("no audio decoded from ", file);
   f.duration = audio.size() / sr;
@@ -415,62 +492,6 @@ Features analyze(const std::string& file, const Options& opt) {
     dc->output("dynamicComplexity").set(f.dynamicComplexity);
     dc->output("loudness").set(f.loudness);
     dc->compute();
-  }
-
-  // EBU R128 and true peak need stereo at the file's own sample rate, so the
-  // file is decoded a second time here.
-  {
-    std::vector<StereoSample> stereo;
-    Real nativeRate = 0;
-    int channels = 0, bitRate = 0;
-    std::string md5, codec;
-    // Standard-mode algorithms require every output to be bound.
-    auto loader = make("AudioLoader", "filename", file);
-    loader->output("audio").set(stereo);
-    loader->output("sampleRate").set(nativeRate);
-    loader->output("numberChannels").set(channels);
-    loader->output("md5").set(md5);
-    loader->output("bit_rate").set(bitRate);
-    loader->output("codec").set(codec);
-    loader->compute();
-    if (stereo.empty() || nativeRate <= 0) throw EssentiaException("no stereo audio decoded from ", file);
-
-    if (channels == 1) {  // mono: play it as dual mono
-      for (auto& s : stereo) s.second = s.first;
-    }
-
-    auto ebu = make("LoudnessEBUR128", "sampleRate", nativeRate);
-    std::vector<Real> momentary, shortTerm;
-    Real loudnessRange = 0;
-    ebu->input("signal").set(stereo);
-    ebu->output("momentaryLoudness").set(momentary);
-    ebu->output("shortTermLoudness").set(shortTerm);
-    ebu->output("integratedLoudness").set(f.integratedLufs.emplace());
-    ebu->output("loudnessRange").set(loudnessRange);
-    ebu->compute();
-    // Nothing passed the -70 LUFS absolute gate (e.g. digital silence): Essentia
-    // reports the gate itself, but BS.1770 integrated loudness is undefined.
-    if (*f.integratedLufs <= -70) f.integratedLufs.reset();
-
-    std::vector<Real> left, right;
-    left.reserve(stereo.size());
-    right.reserve(stereo.size());
-    for (const auto& s : stereo) { left.push_back(s.first); right.push_back(s.second); }
-    stereo.clear();
-    stereo.shrink_to_fit();
-
-    Real peak = 0;
-    for (const auto* ch : {&left, &right}) {
-      auto tp = make("TruePeakDetector", "sampleRate", nativeRate);
-      std::vector<Real> out, locations;
-      tp->input("signal").set(*ch);
-      tp->output("output").set(out);
-      tp->output("peakLocations").set(locations);
-      tp->compute();
-      for (Real v : out) peak = std::max(peak, std::abs(v));
-    }
-    if (peak > 0) f.truePeakDbtp = 20. * std::log10(peak);
-    else f.truePeakDbtp.reset();  // digital silence: unknown
   }
 
   // Silence at start and end.
