@@ -122,6 +122,7 @@ Analysis object fields:
 | `beats` | array of seconds | `--beats` or `--downbeats` only |
 | `downbeatIndexes` | array of ints or `null` | `--downbeats` only; indexes into `beats` that start a bar |
 | `fingerprint` | object or `null` | `--fingerprint` only, see below |
+| `rhythm` | object or `null` | pulse, bar, accents and tempo curve (experimental), see below |
 
 **Key and tuning.** The key is detected against the measured tuning, not
 against A = 440 Hz. `key` and `scale` are `null` when `key_strength` is below
@@ -201,6 +202,50 @@ The fingerprint is computed from the mono analysis signal (at
 `--sample-rate`; Chromaprint resamples internally). `fingerprint` is `null`
 when none could be computed: for digital silence, or when Chromaprint returns
 no fingerprint (e.g. for a file only a few seconds long).
+
+### Rhythm (experimental)
+
+`bpm` comes from Essentia's beat tracker, which counts different note values
+from tune to tune: on folk dance recordings it counted dotted quarters in one
+hanter dro, half notes in two others, and an even pulse that drifts through an
+11/8 bar. `rhythm` measures the music's own cycle instead. `null` for digital
+silence, files shorter than 10 s, or when no cycle can be measured.
+
+```json
+"rhythm": {
+  "schema": 1,
+  "pulseSec": 0.527, "barPulses": 3, "barSec": 1.581, "barsPerMin": 38,
+  "barScore": 0.34,
+  "alternatives": [{"pulses": 6, "sec": 3.161, "score": 0.23}, {"pulses": 2, "sec": 1.054, "score": 0.11}],
+  "accents": {"energy": [1, 0.57, 0.41], "bass": [0.73, 1, 0.87]},
+  "tempoCurve": [{"startSec": 0.0, "barsPerMin": 38}, {"startSec": 30.0, "barsPerMin": 37.9}]
+}
+```
+
+- `pulseSec`: the beat-level pulse, between 0.1 and 0.6 s: the period whose
+  multiples line up best with the autocorrelation of the onset envelope.
+- `barPulses`, `barSec`, `barsPerMin`: the bar as a whole number of pulses
+  (between 0.8 and 4.5 s). It is the cycle with clearly the most repeating
+  structure of its own (structure that is not periodic with a shorter cycle),
+  or, when no cycle stands out from the others and from the noise, the cycle
+  that recurs most strongly. `barsPerMin` is what dancers count; it was
+  29–31 for all three labelled hanter dros, whose `bpm` ranged from 86 to 125.
+- `barScore`: the onset autocorrelation at the bar (0..1); `alternatives`: the
+  next two cycles with their scores, for example two bars, or the half bar.
+- `accents`: mean energy and bass (below 150 Hz) energy per pulse of the bar,
+  relative to the strongest, starting with the strongest energy pulse (the
+  bar start itself is not known). A valse showed one heavy beat
+  (`[1, 0.57, 0.41]`), two mazurkas almost even beats (`[1, 0.86, 0.91]`,
+  `[1, 0.85, 0.87]`).
+- `tempoCurve`: bars per minute per 30-second window (one point for shorter
+  files), which shows accelerandos.
+
+On the labelled tunes in `scripts/eval/folk_labels.json`, the bar is right for
+6 of 7 (three hanter dros, a valse à 11, a valse and two mazurkas); an a
+cappella hanter dro gets 4 quarters instead of 6. These tunes were also used
+to design the method, so expect lower accuracy on other music: check
+`barScore` and `alternatives`. The grouping of the bar into beats (4+2,
+3+3+2+3) is not reported; it could not be measured reliably.
 
 ### File names
 

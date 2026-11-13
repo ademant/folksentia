@@ -100,7 +100,9 @@ def main():
             continue
         fmt = lambda v: "-" if v is None else ("yes" if v else "no")
         print(f"| {f} | {d} | {m} | {lb:.3f} | {'-' if b is None else f'{b:.3f}'} | {fmt(bok)} | {lg} | {g} | {fmt(gok)} | {lbm:.1f} | {tr:.1f} |")
-    print(f"\nbar: {bar_ok}/{len(rows)} within tolerance; uneven grouping: {grouping_ok}/{grouping_n} matched")
+    reported = any((r.get("rhythm") or {}).get("grouping") is not None for r in results)
+    grouping = f"{grouping_ok}/{grouping_n} matched" if reported else "not reported by this folksentia"
+    print(f"\nbar: {bar_ok}/{len(rows)} within tolerance; uneven grouping: {grouping}")
     return 0
 
 

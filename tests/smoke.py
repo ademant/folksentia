@@ -110,6 +110,35 @@ def main():
         check(field in out, f"clicks: has {field}")
     check((out["key"] is None) == (out["key_strength"] < 0.6), "clicks: key null exactly when strength < 0.6")
 
+    # Equal clicks: the onsets give the beat but no bar, so the bar is a whole
+    # number of beats.
+    rh = out["rhythm"]
+    beats_per_bar = rh and rh["barSec"] / 0.5
+    check(rh is not None and rh["schema"] == 1 and near(beats_per_bar, round(beats_per_bar), 0.05)
+          and near(rh["barsPerMin"], 60 / rh["barSec"], 0.1),
+          f"clicks: rhythm bar is a whole number of beats ({rh and (rh['barPulses'], rh['pulseSec'], rh['barSec'])})")
+    check(rh is not None and rh["accents"]["energy"][0] == 1
+          and len(rh["accents"]["energy"]) == rh["barPulses"] == len(rh["accents"]["bass"]),
+          "clicks: one accent value per pulse, strongest first")
+    check(rh is not None and len(rh["tempoCurve"]) == 1 and rh["tempoCurve"][0]["startSec"] == 0,
+          "clicks: one tempo curve point for a file under 30 s")
+
+    # Accented clicks in 3/4 at 150 BPM (loud first beat): bar of 3 beats, 1.2 s.
+    rate, n = 44100, 44100 * 40
+    waltz = [0.0] * n
+    for b in range(int(40 / 0.4) - 1):
+        start, amp = int(b * 0.4 * rate), (0.8 if b % 3 == 0 else 0.15)
+        for k in range(int(0.03 * rate)):
+            waltz[start + k] += amp * math.sin(2 * math.pi * 1000 * k / rate) * math.exp(-k / (0.008 * rate))
+    write_wav(j("waltz.wav"), rate, 1, waltz)
+    rc, w, _, _ = run(j("waltz.wav"))
+    wr = w["rhythm"]
+    check(wr is not None and near(wr["barSec"], 1.2, 0.05) and near(wr["barsPerMin"], 50, 2),
+          f"accented 3/4 clicks: bar 1.2 s ({wr and (wr['barPulses'], wr['pulseSec'], wr['barSec'])})")
+    e = wr and wr["accents"]["energy"]
+    check(e is not None and e[0] == 1 and all(v < 0.6 for v in e[1:]),
+          f"accented 3/4 clicks: one loud beat per bar in the accents ({e})")
+
     # Tempo must not depend on the analysis rate.
     rc, out, _, _ = run("-r", "16000", j("clicks.wav"))
     check(rc == 0 and near(out["bpm"], 120, 2), f"clicks -r 16000: bpm ~120 (got {out and out['bpm']})")
@@ -127,6 +156,7 @@ def main():
     check(out["loudness"]["integratedLufs"] is None and out["loudness"]["truePeakDbtp"] is None,
           "silence: loudness null")
     check(out["beats"] == [] and out["downbeatIndexes"] is None, "silence: no beats, no downbeats")
+    check(out["rhythm"] is None, "silence: rhythm null")
     check(near(out["duration"], 3, 0.001), "silence: duration 3 s")
 
     # Silence threshold: noise counts as sound by default, as silence at -50 dB.
