@@ -66,7 +66,22 @@ builddir/folksentia --fingerprint *.opus > fingerprints.json
 | `-a`, `--array` | print a JSON array even when only one file is given |
 | `-s`, `--silence-threshold DB` | frame power in dBFS below which a frame counts as silence, −150 to 0 (default −100) |
 | `-f`, `--fast` | use the faster `degara` beat tracker instead of `multifeature` (`bpm_confidence` is then always 0) |
+| `-V`, `--version` | print the version, build date, Essentia version and whether Chromaprint is available, then exit |
 | `-r`, `--sample-rate HZ` | analysis sample rate: 8000, 16000, 32000, 44100 or 48000 (default 44100); tempo and beats are always analysed at 44100 Hz |
+
+`--version` prints, for example:
+
+```
+folksentia 0.1.0+g125f36d
+built 2026-11-13
+Essentia 2.1-beta6-dev (v2.1_beta5-1555-g33108c70)
+Chromaprint yes
+```
+
+The first line is always `folksentia VERSION`. VERSION is the release from
+`meson.build`, plus `+g<commit>` when built from a git checkout (`.dirty` with
+uncommitted changes). The build date is UTC, or taken from `SOURCE_DATE_EPOCH`
+when that is set, for reproducible builds.
 
 Exit status is 0 when every file was analysed, 1 when any file failed (the
 other files are still printed), 2 for bad usage.
@@ -187,6 +202,56 @@ base64 with padding), so the result can still be matched to the file:
 
 The same replacement applies to every other string, for example error
 messages that contain the path.
+
+## Offline analysis for folksonic
+
+[folksonic](https://github.com/ademant/folksonic) can have a whole library
+analysed on another machine, for example a desktop with more memory and a
+copy of the music folder. The server exports a job list, `folksentia-jobs`
+runs folksentia over it, and the server imports the results:
+
+```sh
+# on the server
+tinysonic analysis export -c /etc/tinysonic/tinysonic.toml -all -out jobs.json
+
+# on the desktop (folksentia-jobs is built and installed next to folksentia)
+builddir/folksentia-jobs --jobs jobs.json --music-root ~/Musik --out results.jsonl -j 4
+
+# on the server
+tinysonic analysis import -c /etc/tinysonic/tinysonic.toml results.jsonl
+```
+
+| option | meaning |
+|---|---|
+| `--jobs FILE` | job list from `tinysonic analysis export` |
+| `--music-root DIR` | local copy of the music folder; job paths are relative to it |
+| `--out FILE` | result file, one JSON line per job; appended to |
+| `-j`, `--parallel N` | folksentia processes at a time (default: half the CPUs) |
+| `--ignore-mtime` | compare file sizes only, for copies that did not keep modification times (import with `-size-only` then) |
+| `--timeout SEC` | give up on a track after SEC seconds (default: no limit) |
+| `--folksentia PATH` | folksentia binary (default: the one next to the script, else `PATH`) |
+
+Each job runs in its own `folksentia` process, with the flags in the job
+list's `options`, so a crash or an out-of-memory kill only fails that track.
+Memory grows with track length (about 1 GB for a 6-minute track), so lower
+`-j` on machines with little RAM.
+
+Every job gets one line:
+
+- `{"job": …, "local": {"size", "mtimeMs"}, "toolVersion": "…", "result": {…}}`
+  with folksentia's normal output, its `file` replaced by the job's relative
+  path. A crash or timeout becomes a result with `error`, like any other
+  analysis error, and folksonic records it as a failed run.
+- `{"job": …, "skipped": "missing"}` when the file is not in the music root
+  (or the job path is absolute or contains `..`).
+- `{"job": …, "local": …, "skipped": "changed"}` when its size or modification
+  time differs from the job's.
+
+`toolVersion` is the version from `folksentia --version`. The run can be
+stopped and started again with the same arguments: jobs already in the result
+file are skipped, and a half-written last line is removed. Exit status: 0 when
+every job has a line without an error, 1 when some analysis failed, 2 for bad
+usage or an unreadable job list.
 
 ## License
 

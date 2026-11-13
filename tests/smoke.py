@@ -159,6 +159,13 @@ def main():
     check(p.returncode == 0 and out["file"].endswith("caf�.wav")
           and base64.b64decode(out["file_base64"]) == raw, "non-UTF-8 name: file and file_base64")
 
+    # Version.
+    p = subprocess.run([BINARY, "--version"], capture_output=True, text=True)
+    lines = p.stdout.splitlines()
+    check(p.returncode == 0 and len(lines) >= 3 and re.fullmatch(r"folksentia \d+\.\d+\.\d+(\+g[0-9a-f]+(\.dirty)?)?", lines[0])
+          and re.fullmatch(r"built (\d{4}-\d\d-\d\d|unknown)", lines[1]) and lines[2].startswith("Essentia "),
+          f"--version: version, build date, Essentia ({lines[:2]})")
+
     # Fingerprint, when Essentia has Chromaprint.
     rc, out, _, err = run("--fingerprint", j("clicks.wav"), j("silence.wav"))
     if rc == 2 and "Chromaprint" in err:

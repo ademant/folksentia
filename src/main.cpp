@@ -10,6 +10,8 @@
 
 #include <chromaprint.h>
 
+#include "version.h"  // generated: FOLKSENTIA_VERSION_INFO
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -648,6 +650,16 @@ std::optional<double> parseNumber(const std::string& s) {
   }
 }
 
+void printVersion(std::ostream& o) {
+  constexpr const char* kInfo[] = {FOLKSENTIA_VERSION_INFO};  // version, build date
+  const auto keys = AlgorithmFactory::keys();
+  const bool chromaprint = std::find(keys.begin(), keys.end(), "Chromaprinter") != keys.end();
+  o << "folksentia " << kInfo[0] << "\n"
+    << "built " << kInfo[1] << "\n"
+    << "Essentia " << essentia::version << " (" << essentia::version_git_sha << ")\n"
+    << "Chromaprint " << (chromaprint ? "yes" : "no") << "\n";
+}
+
 void usage(std::ostream& o) {
   o << "Usage: folksentia [options] FILE...\n"
        "\n"
@@ -666,6 +678,7 @@ void usage(std::ostream& o) {
        "  -f, --fast             use the faster 'degara' beat tracker\n"
        "  -r, --sample-rate HZ   analysis sample rate: 8000, 16000, 32000, 44100\n"
        "                         or 48000 (default 44100)\n"
+       "  -V, --version          show version, build date and Essentia version\n"
        "  -h, --help             show this help\n";
 }
 
@@ -673,9 +686,11 @@ void usage(std::ostream& o) {
 
 int main(int argc, char** argv) {
   Options opt;
+  bool showVersion = false;
   for (int i = 1; i < argc; ++i) {
     std::string a = argv[i];
     if (a == "-h" || a == "--help") { usage(std::cout); return 0; }
+    else if (a == "-V" || a == "--version") showVersion = true;
     else if (a == "-b" || a == "--beats") opt.beats = true;
     else if (a == "-d" || a == "--downbeats") { opt.downbeats = true; opt.beats = true; }
     else if (a == "-w" || a == "--waveform") opt.waveformBins = 150;
@@ -723,11 +738,17 @@ int main(int argc, char** argv) {
     else if (!a.empty() && a[0] == '-') { std::cerr << "unknown option: " << a << "\n"; usage(std::cerr); return 2; }
     else opt.files.push_back(a);
   }
-  if (opt.files.empty()) { usage(std::cerr); return 2; }
+  if (opt.files.empty() && !showVersion) { usage(std::cerr); return 2; }
 
   essentia::warningLevelActive = false;
   essentia::infoLevelActive = false;
   essentia::init();
+
+  if (showVersion) {
+    printVersion(std::cout);
+    essentia::shutdown();
+    return 0;
+  }
 
   if (opt.fingerprint) {
     const auto keys = AlgorithmFactory::keys();

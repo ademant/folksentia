@@ -67,10 +67,33 @@ essentia = declare_dependency(
                   '-isystem', inc / 'streaming',
                   '-isystem', inc / 'utils'])
 
+python = find_program('python3')
+
+# Version and build date for --version; regenerated on every build, rewritten
+# only when they change.
+version_h = vcs_tag(
+  input : 'src/version.h.in',
+  output : 'version.h',
+  # vcs_tag runs the command in the source dir: give it an absolute path.
+  command : [python, meson.project_source_root() / 'scripts' / 'version.py',
+             meson.project_version(), meson.project_source_root()],
+  fallback : '"' + meson.project_version() + '", "unknown"')
+
 exe = executable('folksentia',
-  'src/main.cpp',
+  'src/main.cpp', version_h,
   dependencies : essentia,
   install : true)
 
-python = find_program('python3')
+# Batch wrapper for folksonic's offline analysis, next to the binary in the
+# build dir and when installed, where it finds folksentia by default.
+jobs_wrapper = configure_file(
+  input : 'scripts/folksentia-jobs.py',
+  output : 'folksentia-jobs',
+  copy : true,
+  install : true,
+  install_dir : get_option('bindir'),
+  install_mode : 'rwxr-xr-x')
+
 test('smoke', python, args : [files('tests/smoke.py'), exe], timeout : 600)
+test('jobs', python, args : [files('tests/jobs.py'), exe, jobs_wrapper],
+     timeout : 600, depends : exe)
