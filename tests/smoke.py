@@ -139,6 +139,57 @@ def main():
     check(e is not None and e[0] == 1 and all(v < 0.6 for v in e[1:]),
           f"accented 3/4 clicks: one loud beat per bar in the accents ({e})")
 
+    # Tempo stability: steady clicks barely move; clicks speeding up from 100
+    # to 125 BPM over 60 s drift and have a positive slope.
+    st = rh and rh["tempoStability"]
+    check(st is not None and st["jitterPct"] is not None and st["jitterPct"] < 1.5
+          and st["driftPct"] is not None and st["driftPct"] < 2 and abs(st["slopePctPerMin"]) < 2,
+          f"clicks: steady tempo ({st})")
+    rate, t, accel = 22050, 0.0, [0.0] * (61 * 22050)
+    while t < 60:
+        start = int(t * rate)
+        for k in range(int(0.03 * rate)):
+            accel[start + k] += 0.5 * math.sin(2 * math.pi * 1000 * k / rate) * math.exp(-k / (0.008 * rate))
+        t += 60 / (100 + 25 * t / 60)
+    write_wav(j("accel.wav"), rate, 1, accel)
+    rc, out, _, _ = run(j("accel.wav"))
+    st = out["rhythm"] and out["rhythm"]["tempoStability"]
+    check(st is not None and st["driftPct"] is not None and 12 < st["driftPct"] < 25
+          and 15 < st["slopePctPerMin"] < 30, f"accelerating clicks: drift and positive slope ({st})")
+
+    # Microtiming: eighth notes at 120 BPM, a bass hit on each bar. Straight,
+    # lilted (60:40), and straight with random timing errors of up to 5 % of a
+    # beat on the off-beats.
+    def eighths(second, jitter=0.0, rate=22050, seconds=60):
+        rng, out, beat = random.Random(2), [0.0] * ((seconds + 1) * rate), 0.5
+        for b in range(int(seconds / beat)):
+            for pos, amp in ((0, 0.5), (second + rng.uniform(-jitter, jitter), 0.3)):
+                start = int((b + pos) * beat * rate)
+                for k in range(int(0.03 * rate)):
+                    out[start + k] += amp * math.sin(2 * math.pi * 1000 * k / rate) * math.exp(-k / (0.008 * rate))
+            if b % 4 == 0:
+                start = int(b * beat * rate)
+                for k in range(int(0.15 * rate)):
+                    out[start + k] += 0.4 * math.sin(2 * math.pi * 60 * k / rate) * math.exp(-k / (0.05 * rate))
+        return out
+    micro = {}
+    for name, second, jitter in (("straight", 0.5, 0), ("lilted", 0.6, 0), ("jittered", 0.5, 0.05)):
+        write_wav(j(name + ".wav"), 22050, 1, eighths(second, jitter))
+        rc, out, _, _ = run(j(name + ".wav"))
+        micro[name] = out["rhythm"] and out["rhythm"]["microtiming"]
+    m = micro["straight"]
+    check(m is not None and m["perBeat"] == 2 and m["withinBarPct"] < 1 and m["acrossBarsPct"] < 1.5
+          and m["npvi"] < 10, f"straight eighths: even and steady ({m})")
+    m = micro["lilted"]
+    check(m is not None and 3 < m["withinBarPct"] < 7 and m["acrossBarsPct"] < 1.5
+          and any(near(v * m["beatsPerBar"] % 1, 0.6, 0.03) for v in m["profile"]),
+          f"lilted eighths (60:40): uneven but steady, off-beat at 0.6 ({m})")
+    m = micro["jittered"]
+    # +-5 % on every second note: median absolute deviation 2.5 % there, 1.25 %
+    # averaged over all notes.
+    check(m is not None and m["acrossBarsPct"] > 1 and m["acrossBarsPct"] > 3 * micro["straight"]["acrossBarsPct"],
+          f"jittered eighths: varies from bar to bar ({m})")
+
     # Tempo must not depend on the analysis rate.
     rc, out, _, _ = run("-r", "16000", j("clicks.wav"))
     check(rc == 0 and near(out["bpm"], 120, 2), f"clicks -r 16000: bpm ~120 (got {out and out['bpm']})")
@@ -153,8 +204,8 @@ def main():
                   "tuning_spread_cents", "spectral_complexity", "spectral_entropy"):
         check(out[field] is None, f"silence: {field} is null")
     check(out["silence"]["leadMs"] is None and out["silence"]["tailMs"] is None, "silence: lead/tail null")
-    check(out["loudness"]["integratedLufs"] is None and out["loudness"]["truePeakDbtp"] is None,
-          "silence: loudness null")
+    check(all(out["loudness"][k] is None for k in ("integratedLufs", "truePeakDbtp", "lraLu", "plrDb",
+                                                   "noiseFloorLufs")), "silence: loudness null")
     check(out["beats"] == [] and out["downbeatIndexes"] is None, "silence: no beats, no downbeats")
     check(out["rhythm"] is None, "silence: rhythm null")
     check(near(out["duration"], 3, 0.001), "silence: duration 3 s")
@@ -166,6 +217,17 @@ def main():
     check(rc == 0 and near(out["silence"]["leadMs"], 2000, 10),
           f"noisy -s -50: leadMs ~2000 (got {out['silence']['leadMs']})")
     check(out["silence"]["thresholdDb"] == -50, "noisy -s -50: thresholdDb reported")
+    # auto: the noise sits at the track's noise floor, so it is silence.
+    rc, out, _, _ = run("--silence-threshold", "auto", j("noisy.wav"))
+    lo = out["loudness"]
+    check(rc == 0 and near(out["silence"]["leadMs"], 2000, 50) and -60 < out["silence"]["thresholdDb"] < -30,
+          f"noisy -s auto: leadMs ~2000 (got {out['silence']['leadMs']} at {out['silence']['thresholdDb']} dB)")
+    # -58.8 dBFS white noise: +3 dB for two channels, -0.7 dB BS.1770 offset,
+    # about +4 dB from the K-weighting's high shelf.
+    check(lo["noiseFloorLufs"] is not None and near(lo["noiseFloorLufs"], -53, 2),
+          f"noisy: noise floor ~-53 LUFS (got {lo['noiseFloorLufs']})")
+    rc, out, _, _ = run("-s", "auto", j("silence.wav"))
+    check(rc == 0 and out["silence"]["thresholdDb"] == -100, "silence -s auto: falls back to -100 dB")
 
     # Output shape.
     rc, out, _, _ = run("--array", j("silence.wav"))
@@ -206,6 +268,16 @@ def main():
           f"steady tone: 440 Hz, spread ~0 ({steady['tuning_frequency']}, {steady['tuning_spread_cents']})")
     check(drift["tuning_spread_cents"] is not None and drift["tuning_spread_cents"] > 30,
           f"tone rising 47 cents: large spread ({drift['tuning_spread_cents']})")
+
+    # Loudness range and peak-to-loudness ratio: a steady tone has no range;
+    # the same tone 20 dB quieter for the second half has a range of ~20 LU.
+    lo = steady["loudness"]
+    check(lo["lraLu"] is not None and lo["lraLu"] < 1, f"steady tone: LRA ~0 (got {lo['lraLu']})")
+    check(near(lo["plrDb"], lo["truePeakDbtp"] - lo["integratedLufs"], 0.01), "steady tone: PLR = peak - loudness")
+    write_wav(j("steps.wav"), 22050, 1, [v * (1 if k < 35 * 22050 else 0.1)
+                                         for k, v in enumerate(tones([(440, 70)]))])
+    rc, steps, _, _ = run(j("steps.wav"))
+    check(near(steps["loudness"]["lraLu"], 20, 1.5), f"tone with a 20 dB step: LRA ~20 (got {steps['loudness']['lraLu']})")
 
     # Spectral complexity and entropy: a two-partial tone uses few frequencies,
     # noise uses all of them.

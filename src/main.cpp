@@ -44,6 +44,11 @@ constexpr Real kMinKeyStrength = 0.6;
 
 // Sample rate RhythmExtractor2013 is designed for.
 constexpr Real kRhythmRate = 44100;
+// Noise floor: this percentile of the momentary loudness above the minimum.
+constexpr Real kNoiseFloorPercentile = 2, kNoiseFloorMinLufs = -120;
+// --silence-threshold auto: noise floor + margin, or integrated - below, but
+// at least maxLu under the integrated loudness.
+constexpr Real kAutoSilenceNoiseMarginDb = 6, kAutoSilenceBelowLu = 40, kAutoSilenceMaxLu = 20;
 
 // Fingerprint the first kFingerprintSeconds of audio, like fpcalc's default.
 // Fixed so that fingerprints from different runs compare.
@@ -59,6 +64,7 @@ constexpr int kFingerprintVersion = 2;
 struct Options {
   Real sampleRate = 44100.;
   Real silenceThresholdDb = -100;  // frame power below this is silence
+  bool silenceAuto = false;        // --silence-threshold auto: relative to the track
   std::string rhythmMethod = "multifeature";
   bool beats = false;
   bool downbeats = false;
@@ -78,6 +84,18 @@ struct Rhythm {
   std::vector<Real> accentEnergy, accentBass;  // per pulse of the bar, 0..1
   struct Point { Real startSec, barsPerMin; };
   std::vector<Point> tempoCurve;
+  // Drift and slope of the bar tempo (measureRhythm), jitter of the beat
+  // ticks (beatJitter); each unset when there is too little to measure.
+  struct Stability { std::optional<Real> jitterPct, driftPct, slopePctPerMin; };
+  Stability tempoStability;
+  // Note timing against the bar grid (measureMicrotiming); unset when there
+  // are too few bars or onsets.
+  struct Microtiming {
+    Real npvi = 0, withinBarPct = 0, acrossBarsPct = 0;
+    int beatsPerBar = 0, perBeat = 0, bars = 0;
+    std::vector<Real> profile;  // onset slot positions, fraction of the bar
+  };
+  std::optional<Microtiming> microtiming;
 };
 
 struct Features {
@@ -102,6 +120,11 @@ struct Features {
 
   // EBU R128 integrated loudness and true peak (dBTP, max over channels).
   std::optional<Real> integratedLufs, truePeakDbtp;
+  // Loudness range (EBU Tech 3342), peak-to-loudness ratio, and the noise
+  // floor (low percentile of the momentary loudness); unset for silence.
+  std::optional<Real> lraLu, plrDb, noiseFloorLufs;
+  // Silence threshold actually used (dBFS frame power).
+  Real silenceThresholdDb = -100;
 
   // Waveform peaks 0..255, one per bin; empty unless requested.
   std::vector<int> waveform;
@@ -335,6 +358,18 @@ void measureLoudness(const std::vector<StereoSample>& stereo, Real rate, Feature
     // Nothing passed the -70 LUFS absolute gate (e.g. digital silence): Essentia
     // reports the gate itself, but BS.1770 integrated loudness is undefined.
     if (*f.integratedLufs <= -70) f.integratedLufs.reset();
+    if (f.integratedLufs) f.lraLu = loudnessRange;
+
+    // Noise floor: the 2nd percentile of the momentary loudness (400 ms
+    // blocks, 100 ms apart), leaving out digital silence (Essentia reports
+    // about -300 LUFS for it).
+    std::vector<Real> blocks;
+    for (Real m : momentary) if (m > kNoiseFloorMinLufs) blocks.push_back(m);
+    if (f.integratedLufs && !blocks.empty()) {
+      const size_t k = size_t(kNoiseFloorPercentile / 100 * Real(blocks.size() - 1));
+      std::nth_element(blocks.begin(), blocks.begin() + k, blocks.end());
+      f.noiseFloorLufs = blocks[k];
+    }
   }
 
   // True peak as ITU-R BS.1770-4 Annex 2 measures it: 4x oversampling by a
@@ -369,6 +404,21 @@ void measureLoudness(const std::vector<StereoSample>& stereo, Real rate, Feature
   }
   if (peak > 0) f.truePeakDbtp = 20. * std::log10(peak);
   else f.truePeakDbtp.reset();  // digital silence: unknown
+  if (f.truePeakDbtp && f.integratedLufs) f.plrDb = *f.truePeakDbtp - *f.integratedLufs;
+}
+
+// Silence threshold relative to the track (--silence-threshold auto): frames
+// near the noise floor, or far below the track's loudness, are silence, but
+// never frames within kAutoSilenceMaxLu of the integrated loudness. Loudness
+// sums both channels and is K-weighted; the frame power is of the mono mix,
+// so the threshold is moved by 3 dB (two channels) and 0.691 dB (BS.1770
+// offset). Falls back to `fallbackDb` when the loudness is unknown.
+Real autoSilenceThreshold(const Features& f, Real fallbackDb) {
+  if (!f.integratedLufs || !f.noiseFloorLufs) return fallbackDb;
+  const Real I = *f.integratedLufs;
+  const Real lufs = std::min(std::max(*f.noiseFloorLufs + kAutoSilenceNoiseMarginDb, I - kAutoSilenceBelowLu),
+                             I - kAutoSilenceMaxLu);
+  return std::clamp(lufs + Real(0.691) - Real(3.01), Real(-150), Real(0));
 }
 
 // Peak per bin, 0..255, normalised to the loudest bin.
@@ -735,6 +785,93 @@ std::vector<int> alignRotations(const std::vector<std::vector<Real>>& profiles) 
   return rot;
 }
 
+// Drift and slope of the bar tempo, from short windows (kDriftBars bars, at
+// least kDriftMinSec, a quarter window apart). Per window, every pulse from
+// kDriftLow to kDriftHigh times the track's pulse (steps of kDriftStep) is
+// scored by how well its multiples line up with the window's autocorrelation,
+// relative to the window's best. The pulse path through the windows is the
+// one with the highest total score minus kDriftJumpCost per 1 % change
+// between neighbouring windows (Viterbi): a lasting change, such as the next
+// tune of a suite, wins, a single noisy window does not. Each window's bar of
+// the same number of pulses is then refined. Drift is the 10th to 90th
+// percentile range of the windows' tempo in % of their median, slope its
+// least-squares trend in % of the median per minute.
+constexpr Real kDriftBars = 4, kDriftMinSec = 8, kDriftLow = 0.8, kDriftHigh = 1.25;
+constexpr Real kDriftStep = 0.004, kDriftJumpCost = 0.03;
+constexpr size_t kDriftMinWindows = 5;
+constexpr Real kDriftMinBarScore = 0.1;  // weaker bars give no usable tempo path
+
+void measureBarDrift(const Envelopes& e, Rhythm& r, size_t maxLag) {
+  if (r.barScore < kDriftMinBarScore) return;
+  const Real rate = e.rate;
+  const size_t len = size_t(std::max(kDriftMinSec, kDriftBars * r.barSec) * rate);
+  const size_t hop = std::max<size_t>(1, len / 4);
+  if (e.onsets.size() < len) return;
+  const int states = int(std::log(kDriftHigh / kDriftLow) / kDriftStep) + 1;
+  const auto statePulse = [&](int j) { return r.pulseSec * kDriftLow * std::exp(j * kDriftStep); };
+  std::vector<std::vector<Real>> acs;
+  std::vector<Real> minutes;
+  std::vector<std::vector<Real>> score;
+  for (size_t from = 0; from + len <= e.onsets.size(); from += hop) {
+    auto ac = autocorrelation(e.onsets, from, from + len, maxLag);
+    if (ac.size() <= maxLag || !(ac[0] > 0)) continue;
+    std::vector<Real> sc(states);
+    for (int j = 0; j < states; ++j) sc[j] = pulseScore(ac, statePulse(j), rate);
+    const Real top = *std::max_element(sc.begin(), sc.end());
+    if (!(top > 0)) continue;
+    for (Real& v : sc) v /= top;
+    score.push_back(std::move(sc));
+    acs.push_back(std::move(ac));
+    minutes.push_back((Real(from) + Real(len) / 2) / rate / 60);
+  }
+  if (score.size() < kDriftMinWindows) return;
+  // Viterbi over the pulse states.
+  const Real jump = kDriftJumpCost * kDriftStep * 100;  // cost per state step
+  std::vector<Real> total = score[0];
+  std::vector<std::vector<int>> from(score.size(), std::vector<int>(states, 0));
+  for (size_t w = 1; w < score.size(); ++w) {
+    std::vector<Real> next(states);
+    for (int j = 0; j < states; ++j) {
+      Real best = -1e30;
+      for (int k = 0; k < states; ++k) {
+        const Real v = total[k] - jump * std::abs(j - k);
+        if (v > best) { best = v; from[w][j] = k; }
+      }
+      next[j] = best + score[w][j];
+    }
+    total = std::move(next);
+  }
+  std::vector<int> path(score.size());
+  path.back() = int(std::max_element(total.begin(), total.end()) - total.begin());
+  for (size_t w = score.size() - 1; w > 0; --w) path[w - 1] = from[w][path[w]];
+  std::vector<Real> tempo;
+  for (size_t w = 0; w < score.size(); ++w) {
+    const Real bar = refinePeriod(acs[w], r.barPulses * statePulse(path[w]), 0.02, rate);
+    tempo.push_back(60 / bar);
+  }
+  if (tempo.size() < kDriftMinWindows) return;
+  std::vector<Real> sorted = tempo;
+  std::sort(sorted.begin(), sorted.end());
+  const auto at = [&](Real q) {  // linear interpolation between ranks
+    const Real x = q * Real(sorted.size() - 1);
+    const size_t i = size_t(x);
+    return i + 1 < sorted.size() ? sorted[i] + (x - Real(i)) * (sorted[i + 1] - sorted[i]) : sorted[i];
+  };
+  const Real mid = median(tempo);
+  Real mt = 0, mv = 0;
+  for (size_t i = 0; i < tempo.size(); ++i) { mt += minutes[i]; mv += tempo[i]; }
+  mt /= Real(tempo.size());
+  mv /= Real(tempo.size());
+  Real sxy = 0, sxx = 0;
+  for (size_t i = 0; i < tempo.size(); ++i) {
+    sxy += (minutes[i] - mt) * (tempo[i] - mv);
+    sxx += (minutes[i] - mt) * (minutes[i] - mt);
+  }
+  const auto r2 = [](Real v) { return std::round(v * 100) / 100; };
+  r.tempoStability.driftPct = r2((at(0.9) - at(0.1)) / mid * 100);
+  if (sxx > 0) r.tempoStability.slopePctPerMin = r2(sxy / sxx / mid * 100);
+}
+
 std::optional<Rhythm> measureRhythm(const std::vector<Real>& audio, Real sr) {
   if (audio.size() < kRhythmMinSec * sr) return std::nullopt;
   const Envelopes e = rhythmEnvelopes(audio, sr);
@@ -813,6 +950,7 @@ std::optional<Rhythm> measureRhythm(const std::vector<Real>& audio, Real sr) {
     r.alternatives.push_back({cands[others[i]].pulses, cands[others[i]].pulses * r.pulseSec, cands[others[i]].ac});
   for (size_t w = 0; w < windows.size(); ++w)
     r.tempoCurve.push_back({windows[w].startSec, 60 / c.periods[w]});
+  measureBarDrift(e, r, maxLag);
 
   // Accents: energy and bass per pulse of the bar, windows aligned on energy,
   // rotated so the strongest pulse comes first, relative to it.
@@ -846,6 +984,244 @@ std::optional<Rhythm> measureRhythm(const std::vector<Real>& audio, Real sr) {
     }
   }
   return r;
+}
+
+// Beat jitter: per window of kJitterBeats beat intervals (kJitterHop apart),
+// the mean absolute deviation of the intervals from their median, in % of the
+// median; the median over the windows, so slow drift and the beat tracker's
+// switches between note values do not count. The ticks are quantised to the
+// tracker's frames (11.6 ms), which sets a floor of about 1 %.
+constexpr size_t kJitterBeats = 8, kJitterHop = 4, kJitterMinIntervals = 20;
+
+std::optional<Real> beatJitter(const std::vector<Real>& ticks) {
+  std::vector<Real> ibi;
+  for (size_t i = 1; i < ticks.size(); ++i)
+    if (ticks[i] > ticks[i - 1]) ibi.push_back(ticks[i] - ticks[i - 1]);
+  if (ibi.size() < kJitterMinIntervals) return std::nullopt;
+  std::vector<Real> jitter;
+  for (size_t s = 0; s + kJitterBeats <= ibi.size(); s += kJitterHop) {
+    const std::vector<Real> w(ibi.begin() + s, ibi.begin() + s + kJitterBeats);
+    const Real m = median(w);
+    Real dev = 0;
+    for (Real x : w) dev += std::abs(x - m);
+    jitter.push_back(dev / Real(w.size()) / m * 100);
+  }
+  return std::round(median(jitter) * 100) / 100;
+}
+
+// Note onsets: log spectral flux (frames of kOnsetFrameSec, hop 1/4 frame,
+// local mean removed), peaks at least kOnsetMinGapSec apart and above
+// kOnsetRel times the 99th percentile, the time interpolated between frames.
+constexpr Real kOnsetFrameSec = 0.023, kOnsetMinGapSec = 0.05, kOnsetRel = 0.1;
+
+struct Onsets { std::vector<Real> times, strengths; };
+
+Onsets measureOnsets(const std::vector<Real>& audio, Real sr) {
+  const int frameSize = 1 << int(std::lround(std::log2(kOnsetFrameSec * sr)));
+  const int hop = frameSize / 4;
+  const Real rate = sr / hop;
+  auto window = make("Windowing", "type", "hann", "normalized", false, "zeroPhase", false);
+  auto spectrum = make("Spectrum", "size", frameSize);
+  std::vector<Real> frame(frameSize), windowed, spec, logPrev, logCur, flux;
+  window->input("frame").set(frame);
+  window->output("frame").set(windowed);
+  spectrum->input("frame").set(windowed);
+  spectrum->output("spectrum").set(spec);
+  for (size_t s = 0; s + frameSize <= audio.size(); s += hop) {
+    std::copy(audio.begin() + s, audio.begin() + s + frameSize, frame.begin());
+    window->compute();
+    spectrum->compute();
+    logCur.resize(spec.size());
+    for (size_t k = 0; k < spec.size(); ++k) logCur[k] = std::log1p(100 * spec[k]);
+    Real v = 0;
+    if (!logPrev.empty())
+      for (size_t k = 0; k < logCur.size(); ++k) v += std::max(Real(0), logCur[k] - logPrev[k]);
+    flux.push_back(v);
+    std::swap(logPrev, logCur);
+  }
+  Onsets o;
+  const long n = long(flux.size()), half = long(0.1 * rate);
+  if (n < 3) return o;
+  std::vector<Real> d(n);
+  for (long i = 0; i < n; ++i) {
+    Real sum = 0;
+    const long a = std::max(0L, i - half), b = std::min(n - 1, i + half);
+    for (long j = a; j <= b; ++j) sum += flux[j];
+    d[i] = std::max(Real(0), flux[i] - sum / Real(b - a + 1));
+  }
+  std::vector<Real> sorted = d;
+  const size_t k99 = size_t(0.99 * Real(n - 1));
+  std::nth_element(sorted.begin(), sorted.begin() + k99, sorted.end());
+  const Real threshold = kOnsetRel * sorted[k99];
+  if (!(threshold > 0)) return o;
+  const long gap = std::max(1L, long(kOnsetMinGapSec * rate));
+  for (long i = 1; i + 1 < n; ++i) {
+    if (d[i] < threshold) continue;
+    bool peak = true;
+    for (long j = std::max(0L, i - gap); j <= std::min(n - 1, i + gap) && peak; ++j)
+      if (d[j] > d[i] || (d[j] == d[i] && j < i)) peak = false;
+    if (!peak) continue;
+    Real offset = 0;
+    const Real denom = d[i - 1] - 2 * d[i] + d[i + 1];
+    if (denom < 0) offset = std::clamp((d[i - 1] - d[i + 1]) / (2 * denom), Real(-0.5), Real(0.5));
+    // flux[i] compares frame i with frame i-1: the onset lies between their
+    // centres, half a hop before frame i's centre.
+    o.times.push_back(((Real(i) + offset - 0.5) * hop + frameSize / 2) / sr);
+    o.strengths.push_back(d[i]);
+  }
+  return o;
+}
+
+// Microtiming: note onsets placed on the bar grid.
+//  - Bars: groups of B beat ticks, B the whole number of beats closest to the
+//    rhythm's bar (1 when it is not close to one: then beats are the cycle).
+//    The group start is the tick phase with the strongest onsets. Bars with a
+//    beat interval more than kMicroMaxIntervalDev from the typical one (the
+//    beat tracker switching note values) are left out.
+//  - Each onset gets its position v in the bar, 0..1, linear between the
+//    bar's first and last tick, and the nearest slot of a grid of B x s
+//    points, s = 2, 3 or 4 per beat, whichever the onsets fit best.
+//  - Per slot (used in at least kMicroMinSlotShare of the bars): the mean
+//    offset from the even grid and the spread from bar to bar (median
+//    absolute deviation), both in beats.
+//  - withinBarPct: the slots' mean offsets relative to the first slot's (or
+//    to their median when the first slot is not used), which removes the
+//    tracker's latency, as the onset-weighted mean absolute value, in % of a
+//    beat: how unevenly the bar is played. acrossBarsPct: the onset-weighted
+//    mean of the spreads, in % of a beat: how much the timing varies from
+//    bar to bar. profile: the slots' mean positions in the bar.
+//  - npvi: normalized pairwise variability index of successive inter-onset
+//    intervals up to two beats long.
+constexpr Real kMicroMaxIntervalDev = 0.2, kMicroMinSlotShare = 0.25, kMicroFinerGain = 0.2;
+constexpr int kMicroMinBars = 8;
+
+std::optional<Rhythm::Microtiming> measureMicrotiming(const std::vector<Real>& audio, Real sr,
+                                                     const std::vector<Real>& ticks, const Rhythm& r) {
+  if (ticks.size() < 2 * kMicroMinBars) return std::nullopt;
+  std::vector<Real> ibi;
+  for (size_t i = 1; i < ticks.size(); ++i) ibi.push_back(ticks[i] - ticks[i - 1]);
+  const Real beat = median(ibi);
+  if (!(beat > 0)) return std::nullopt;
+  const Real ratio = r.barSec / beat;
+  int B = int(std::lround(ratio));
+  if (B < 1 || B > 12 || std::abs(ratio - B) > 0.15 * B) B = 1;
+
+  const Onsets on = measureOnsets(audio, sr);
+  if (on.times.size() < size_t(4 * kMicroMinBars)) return std::nullopt;
+
+  // Phase: the tick offset whose ticks carry the strongest onsets.
+  const auto strengthNear = [&](Real t) {
+    const auto it = std::lower_bound(on.times.begin(), on.times.end(), t - 0.05);
+    Real best = 0;
+    for (auto j = it; j != on.times.end() && *j <= t + 0.05; ++j)
+      best = std::max(best, on.strengths[size_t(j - on.times.begin())]);
+    return best;
+  };
+  int phase = 0;
+  if (B > 1) {
+    std::vector<Real> sum(B, 0);
+    for (size_t i = 0; i < ticks.size(); ++i) sum[i % B] += strengthNear(ticks[i]);
+    phase = int(std::max_element(sum.begin(), sum.end()) - sum.begin());
+  }
+
+  // Positions in the bar of the onsets in usable bars.
+  std::vector<Real> pos;
+  std::vector<int> barOf;
+  int bars = 0;
+  for (size_t b = size_t(phase); b + B < ticks.size(); b += size_t(B)) {
+    bool ok = true;
+    for (int k = 0; k < B && ok; ++k)
+      ok = std::abs(ibi[b + k] / beat - 1) <= kMicroMaxIntervalDev;
+    if (!ok) continue;
+    const Real t0 = ticks[b], t1 = ticks[b + B];
+    const auto first = std::lower_bound(on.times.begin(), on.times.end(), t0 - 0.5 * (t1 - t0) / (2 * B));
+    for (auto j = first; j != on.times.end(); ++j) {
+      Real v = (*j - t0) / (t1 - t0);
+      if (v >= 1 - 0.5 / (2 * B)) break;  // the next bar's first slot
+      pos.push_back(v);
+      barOf.push_back(bars);
+    }
+    ++bars;
+  }
+  if (bars < kMicroMinBars || pos.size() < size_t(2 * bars)) return std::nullopt;
+
+  // Grid: s per beat with the smallest mean distance to the nearest slot,
+  // in slots (0.25 for random onsets); a finer grid only when at least
+  // kMicroFinerGain better.
+  int s = 2;
+  Real bestDev = 1;
+  for (int c : {2, 3, 4}) {
+    Real m = 0;
+    for (Real v : pos) m += std::abs(v * B * c - std::round(v * B * c));
+    m /= Real(pos.size());
+    if (m < bestDev * (1 - kMicroFinerGain)) { bestDev = m; s = c; }
+  }
+  const int N = B * s;
+
+  // Per slot: offsets (in beats) of the onsets assigned to it, one per bar
+  // (the strongest is not known here; the first is taken).
+  std::vector<std::vector<Real>> offsets(N);
+  std::vector<int> lastBar(N, -1);
+  for (size_t i = 0; i < pos.size(); ++i) {
+    const long k = std::lround(pos[i] * N);
+    const int slot = int(((k % N) + N) % N);
+    if (lastBar[slot] == barOf[i]) continue;
+    lastBar[slot] = barOf[i];
+    Real d = pos[i] * N - Real(k);  // in slots
+    offsets[slot].push_back(d / s);  // in beats
+  }
+  struct Slot { int index; Real mean, spread; size_t count; };
+  std::vector<Slot> used;
+  for (int k = 0; k < N; ++k) {
+    if (offsets[k].size() < size_t(std::ceil(kMicroMinSlotShare * bars))) continue;
+    const Real m = median(offsets[k]);
+    std::vector<Real> dev;
+    for (Real d : offsets[k]) dev.push_back(std::abs(d - m));
+    used.push_back({k, m, median(dev), offsets[k].size()});
+  }
+  if (used.size() < 2) return std::nullopt;
+  // Reference: the bar's first slot when it is used (onsets on the downbeat
+  // tick measure the tracker's latency), else the median slot offset.
+  Real common;
+  if (used.front().index == 0) {
+    common = used.front().mean;
+  } else {
+    std::vector<Real> means;
+    for (const auto& u : used) for (size_t c = 0; c < u.count; ++c) means.push_back(u.mean);
+    common = median(means);
+  }
+  Real within = 0, across = 0, total = 0;
+  for (const auto& u : used) {
+    within += std::abs(u.mean - common) * Real(u.count);
+    across += u.spread * Real(u.count);
+    total += Real(u.count);
+  }
+
+  Rhythm::Microtiming m;
+  m.beatsPerBar = B;
+  m.perBeat = s;
+  m.bars = bars;
+  m.withinBarPct = std::round(within / total * 100 * 10) / 10;
+  m.acrossBarsPct = std::round(across / total * 100 * 10) / 10;
+  for (const auto& u : used) {
+    Real v = (Real(u.index) / s + u.mean - common) / B;
+    v -= std::floor(v + 0.0005);  // keep the bar's first slot at 0, not 0.999
+    m.profile.push_back(std::round(v * 1000) / 1000);
+  }
+  std::sort(m.profile.begin(), m.profile.end());
+
+  // nPVI over successive inter-onset intervals up to two beats.
+  Real sum = 0;
+  size_t pairs = 0;
+  for (size_t i = 2; i < on.times.size(); ++i) {
+    const Real a = on.times[i - 1] - on.times[i - 2], b = on.times[i] - on.times[i - 1];
+    if (a > 2 * beat || b > 2 * beat) continue;
+    sum += std::abs(a - b) / ((a + b) / 2);
+    ++pairs;
+  }
+  if (pairs == 0) return std::nullopt;
+  m.npvi = std::round(100 * sum / Real(pairs) * 10) / 10;
+  return m;
 }
 
 Features analyze(const std::string& file, const Options& opt) {
@@ -1029,9 +1405,15 @@ Features analyze(const std::string& file, const Options& opt) {
 
   // Pulse, bar, accents and tempo curve.
   if (!silent) f.rhythm = measureRhythm(audio, sr);
+  if (f.rhythm) {
+    f.rhythm->tempoStability.jitterPct = beatJitter(f.ticks);
+    f.rhythm->microtiming = measureMicrotiming(audio, sr, f.ticks, *f.rhythm);
+  }
 
   // Silence at start and end.
-  measureSilence(audio, sr, opt.silenceThresholdDb, f);
+  f.silenceThresholdDb = opt.silenceAuto ? autoSilenceThreshold(f, opt.silenceThresholdDb)
+                                         : opt.silenceThresholdDb;
+  measureSilence(audio, sr, f.silenceThresholdDb, f);
 
   // Waveform.
   if (opt.waveformBins > 0) f.waveform = measureWaveform(audio, opt.waveformBins);
@@ -1078,7 +1460,21 @@ void printRhythm(std::ostream& o, const std::optional<Rhythm>& r, const std::str
   for (size_t i = 0; i < r->tempoCurve.size(); ++i)
     o << (i ? ", " : "") << "{\"startSec\": " << jsonSeconds(r->tempoCurve[i].startSec)
       << ", \"barsPerMin\": " << jsonNum(Real(std::round(r->tempoCurve[i].barsPerMin * 10) / 10)) << "}";
-  o << "]\n" << in << "}";
+  o << "],\n" << in2 << "\"tempoStability\": ";
+  const auto& t = r->tempoStability;
+  o << "{\"jitterPct\": " << jsonNum(t.jitterPct) << ", \"driftPct\": " << jsonNum(t.driftPct)
+    << ", \"slopePctPerMin\": " << jsonNum(t.slopePctPerMin) << "},\n"
+    << in2 << "\"microtiming\": ";
+  if (const auto& m = r->microtiming) {
+    o << "{\"npvi\": " << jsonNum(m->npvi) << ", \"withinBarPct\": " << jsonNum(m->withinBarPct)
+      << ", \"acrossBarsPct\": " << jsonNum(m->acrossBarsPct) << ", \"beatsPerBar\": " << m->beatsPerBar
+      << ", \"perBeat\": " << m->perBeat << ", \"bars\": " << m->bars << ", \"profile\": ";
+    printNumbers(o, m->profile);
+    o << "}";
+  } else {
+    o << "null";
+  }
+  o << "\n" << in << "}";
 }
 
 // Indentation: `indent` is the outer indent; members use indent + 2 spaces.
@@ -1105,14 +1501,17 @@ void printFile(std::ostream& o, const std::string& file, const Features& f,
     << in << "\"spectral_entropy\": " << jsonNum(f.spectralEntropy) << ",\n"
     << in << "\"silence\": {\n"
     << in2 << "\"schema\": " << kSchema << ",\n"
-    << in2 << "\"thresholdDb\": " << jsonNum(opt.silenceThresholdDb) << ",\n"
+    << in2 << "\"thresholdDb\": " << jsonNum(Real(std::round(f.silenceThresholdDb * 10) / 10)) << ",\n"
     << in2 << "\"leadMs\": " << jsonNum(f.leadMs) << ",\n"
     << in2 << "\"tailMs\": " << jsonNum(f.tailMs) << "\n"
     << in << "},\n"
     << in << "\"loudness\": {\n"
     << in2 << "\"schema\": " << kSchema << ",\n"
     << in2 << "\"integratedLufs\": " << jsonNum(f.integratedLufs) << ",\n"
-    << in2 << "\"truePeakDbtp\": " << jsonNum(f.truePeakDbtp) << "\n"
+    << in2 << "\"truePeakDbtp\": " << jsonNum(f.truePeakDbtp) << ",\n"
+    << in2 << "\"lraLu\": " << jsonNum(f.lraLu) << ",\n"
+    << in2 << "\"plrDb\": " << jsonNum(f.plrDb) << ",\n"
+    << in2 << "\"noiseFloorLufs\": " << jsonNum(f.noiseFloorLufs) << "\n"
     << in << "},\n"
     << in << "\"rhythm\": ";
   printRhythm(o, f.rhythm, in);
@@ -1202,8 +1601,9 @@ void usage(std::ostream& o) {
        "  -w, --waveform[=BINS]  include BINS waveform peaks, 0..255 (default 150)\n"
        "  -p, --fingerprint      include a Chromaprint fingerprint of the first 120 s\n"
        "  -a, --array            print a JSON array even for a single file\n"
-       "  -s, --silence-threshold DB\n"
-       "                         frame power (dBFS) below which a frame is silence (default -100)\n"
+       "  -s, --silence-threshold DB|auto\n"
+       "                         frame power (dBFS) below which a frame is silence (default -100);\n"
+       "                         auto: relative to the track's noise floor and loudness\n"
        "  -f, --fast             use the faster 'degara' beat tracker\n"
        "  -r, --sample-rate HZ   analysis sample rate: 8000, 16000, 32000, 44100\n"
        "                         or 48000 (default 44100)\n"
@@ -1237,12 +1637,18 @@ int main(int argc, char** argv) {
     else if (a == "-p" || a == "--fingerprint") opt.fingerprint = true;
     else if (a == "-a" || a == "--array") opt.array = true;
     else if (a == "-s" || a == "--silence-threshold") {
+      if (i + 1 < argc && std::string(argv[i + 1]) == "auto") {
+        ++i;
+        opt.silenceAuto = true;
+        continue;
+      }
       const auto db = i + 1 < argc ? parseNumber(argv[++i]) : std::nullopt;
       if (!db || *db < -150 || *db > 0) {
-        std::cerr << "folksentia: --silence-threshold needs DB between -150 and 0\n";
+        std::cerr << "folksentia: --silence-threshold needs DB between -150 and 0, or auto\n";
         return 2;
       }
       opt.silenceThresholdDb = Real(*db);
+      opt.silenceAuto = false;
     }
     else if (a == "-m" || a == "--meter") {
       const auto n = i + 1 < argc ? parseNumber(argv[++i]) : std::nullopt;
