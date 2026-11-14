@@ -57,7 +57,16 @@ def parse_aubio_tempo(out: str) -> dict:
 
 
 def parse_aubio_beats(out: str) -> dict:
-    return {"beats": [round(float(x.split()[0]), 3) for x in out.split("\n") if x.strip()]}
+    # stdout and stderr are merged, and aubio's libavformat WAV reader warns
+    # about the piped WAV's placeholder size ("[wav @ ...] Ignoring maximum wav
+    # data size", "Packet corrupt"), so only lines that start with a number
+    # are beats.
+    beats = []
+    for line in out.splitlines():
+        first = line.split()[0] if line.strip() else ""
+        if re.fullmatch(r"\d+(\.\d+)?", first):
+            beats.append(round(float(first), 3))
+    return {"beats": beats}
 
 
 def parse_soundstretch(out: str) -> dict:
@@ -122,7 +131,7 @@ def input_rate(path: str) -> int:
     out = subprocess.run(
         ["ffprobe", "-v", "error", "-select_streams", "a:0",
          "-show_entries", "stream=sample_rate", "-of", "csv=p=0", path],
-        capture_output=True, text=True).stdout.strip()
+        capture_output=True, text=True, errors="replace").stdout.strip()
     return int(out) if out.isdigit() else 0
 
 
@@ -148,13 +157,13 @@ def analyse(path: str, silence_db: float) -> dict:
                 continue
             r_fd, w_fd = os.pipe()
             p = subprocess.Popen(t.argv, stdin=r_fd, stdout=subprocess.PIPE,
-                                 stderr=subprocess.STDOUT, text=True)
+                                 stderr=subprocess.STDOUT, text=True, errors="replace")
             os.close(r_fd)
             procs.append(p)
             write_fds.append(w_fd)
             cmd += ["-map", f"[t{i}]", *t.out_args, "-y", f"pipe:{w_fd}"]
 
-        ff = subprocess.Popen(cmd, stderr=subprocess.PIPE, text=True, pass_fds=write_fds)
+        ff = subprocess.Popen(cmd, stderr=subprocess.PIPE, text=True, errors="replace", pass_fds=write_fds)
         for fd in write_fds:     # only ffmpeg may hold the write ends, so readers see EOF
             os.close(fd)
         log = ff.communicate()[1]
@@ -162,7 +171,7 @@ def analyse(path: str, silence_db: float) -> dict:
         # The file-reading tools, once ffmpeg has written their files.
         if ff.returncode == 0:
             started = [(i, subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                                            stderr=subprocess.STDOUT, text=True)) for i, argv in later]
+                                            stderr=subprocess.STDOUT, text=True, errors="replace")) for i, argv in later]
             for i, p in started:
                 outputs[i] = p.communicate()[0]
                 procs[i] = p
