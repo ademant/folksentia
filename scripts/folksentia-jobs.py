@@ -80,6 +80,8 @@ def folksentia_args(options):
         args.append(f"--waveform={int(options['waveform'])}")
     if options.get("fingerprint"):
         args.append("--fingerprint")
+    if options.get("onsets"):
+        args.append("--onsets")
     return args
 
 

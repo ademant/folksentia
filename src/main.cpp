@@ -71,9 +71,14 @@ struct Options {
   int waveformBins = 0;  // 0 = no waveform
   bool fingerprint = false;
   bool array = false;  // always print a JSON array
-  int meter = 4;       // beats per bar, for downbeats
+  int meter = 0;       // beats per bar for downbeats; 0: from the measured bar
+  bool onsets = false;
   std::vector<std::string> files;
 };
+
+// Note onsets (measureOnsets): times in seconds, strength of the onset
+// function at each.
+struct Onsets { std::vector<Real> times, strengths; };
 
 // Pulse, bar and accents from the onset envelope (measureRhythm).
 struct Rhythm {
@@ -129,8 +134,13 @@ struct Features {
   // Waveform peaks 0..255, one per bin; empty unless requested.
   std::vector<int> waveform;
 
-  // Indexes into ticks that start a bar; unset when unknown.
+  // Indexes into ticks that start a bar; unset when unknown. downbeatMeter:
+  // the beats per bar used for them (--meter, or from the measured bar).
   std::optional<std::vector<int>> downbeatIndexes;
+  int downbeatMeter = 0;
+
+  // Note onsets, --onsets only; unset for digital silence.
+  std::optional<Onsets> onsets;
 
   // Chromaprint fingerprint (compressed, base64) and the seconds of audio it
   // covers; unset when not requested or when none could be computed.
@@ -472,14 +482,60 @@ void measureFingerprint(const std::vector<Real>& audio, Real sr, Features& f) {
 }
 
 // Bar starts from the beat ticks. Each beat is scored by the energy of the
-// bass (below 150 Hz) just after it. Each of the `meter` possible bar phases is
-// scored by how much louder its beats are than the others; the loudest phase
-// wins if it is clearly louder. Returns nothing when there is no clear phase.
+// bass (below 150 Hz) just after it. For each candidate number of beats per
+// bar, each of its possible bar phases is scored by how much louder its beats
+// are than the others; the loudest phase wins if it is clearly louder. The
+// first candidate is preferred; a later one (e.g. twice the measured bar) is
+// taken only when its contrast is kDownbeatPreferGain higher. When the bass
+// gives no clear phase and note onsets are given, the same is tried with the
+// strongest onset within kDownbeatOnsetSec of each beat. Returns nothing when
+// there is no clear phase; `used` is the number of beats per bar chosen (the
+// first candidate when none is clear).
+constexpr Real kDownbeatOnsetSec = 0.05, kDownbeatMinContrast = 1.2, kDownbeatPreferGain = 1.25;
+
+struct Phase { int phase; Real contrast; };
+
+std::optional<Phase> clearPhase(const std::vector<Real>& accent, int meter) {
+  Real bestContrast = 0;
+  int bestPhase = -1;
+  for (int p = 0; p < meter; ++p) {
+    Real sumIn = 0, sumOut = 0;
+    size_t nIn = 0, nOut = 0;
+    for (size_t i = 0; i < accent.size(); ++i) {
+      if (int(i % meter) == p) { sumIn += accent[i]; ++nIn; }
+      else { sumOut += accent[i]; ++nOut; }
+    }
+    if (nIn == 0 || nOut == 0) continue;
+    const Real meanIn = sumIn / nIn, meanOut = sumOut / nOut;
+    const Real contrast = meanOut > 0 ? meanIn / meanOut : (meanIn > 0 ? 1e9 : 0);
+    if (contrast > bestContrast) { bestContrast = contrast; bestPhase = p; }
+  }
+  if (bestPhase < 0 || bestContrast < kDownbeatMinContrast) return std::nullopt;
+  return Phase{bestPhase, bestContrast};
+}
+
+// The clear phase over the candidate meters (see measureDownbeats).
+std::optional<std::pair<int, int>> bestMeter(const std::vector<Real>& accent, const std::vector<int>& meters) {
+  std::optional<std::pair<int, int>> best;  // meter, phase
+  Real bestContrast = 0;
+  for (size_t k = 0; k < meters.size(); ++k) {
+    if (accent.size() < size_t(2 * meters[k])) continue;
+    const auto p = clearPhase(accent, meters[k]);
+    if (!p) continue;
+    if (!best || p->contrast >= kDownbeatPreferGain * bestContrast) {
+      best = std::make_pair(meters[k], p->phase);
+      bestContrast = p->contrast;
+    }
+  }
+  return best;
+}
+
 std::optional<std::vector<int>> measureDownbeats(const std::vector<Real>& audio,
-                                                 const std::vector<Real>& ticks,
-                                                 Real sr, int meter) {
-  constexpr Real kMinContrast = 1.2;  // phase energy / energy of other beats
-  if (ticks.size() < size_t(2 * meter) || audio.empty()) return std::nullopt;
+                                                 const std::vector<Real>& ticks, Real sr,
+                                                 const std::vector<int>& meters, const Onsets* onsets,
+                                                 int& used) {
+  used = meters.front();
+  if (ticks.size() < size_t(2 * meters.front()) || audio.empty()) return std::nullopt;
 
   std::vector<Real> bass;
   {
@@ -506,24 +562,21 @@ std::optional<std::vector<int>> measureDownbeats(const std::vector<Real>& audio,
     accent[i] = energy / Real(e - s);
   }
 
-  Real bestContrast = 0;
-  int bestPhase = -1;
-  for (int p = 0; p < meter; ++p) {
-    Real sumIn = 0, sumOut = 0;
-    size_t nIn = 0, nOut = 0;
-    for (size_t i = 0; i < accent.size(); ++i) {
-      if (int(i % meter) == p) { sumIn += accent[i]; ++nIn; }
-      else { sumOut += accent[i]; ++nOut; }
+  auto phase = bestMeter(accent, meters);
+  if (!phase && onsets && !onsets->times.empty()) {
+    std::vector<Real> strength(ticks.size(), 0.);
+    for (size_t i = 0; i < ticks.size(); ++i) {
+      auto j = std::lower_bound(onsets->times.begin(), onsets->times.end(), ticks[i] - kDownbeatOnsetSec);
+      for (; j != onsets->times.end() && *j <= ticks[i] + kDownbeatOnsetSec; ++j)
+        strength[i] = std::max(strength[i], onsets->strengths[size_t(j - onsets->times.begin())]);
     }
-    if (nIn == 0 || nOut == 0) continue;
-    const Real meanIn = sumIn / nIn, meanOut = sumOut / nOut;
-    const Real contrast = meanOut > 0 ? meanIn / meanOut : (meanIn > 0 ? 1e9 : 0);
-    if (contrast > bestContrast) { bestContrast = contrast; bestPhase = p; }
+    phase = bestMeter(strength, meters);
   }
-  if (bestPhase < 0 || bestContrast < kMinContrast) return std::nullopt;
+  if (!phase) return std::nullopt;
 
+  used = phase->first;
   std::vector<int> out;
-  for (size_t i = bestPhase; i < ticks.size(); i += meter) out.push_back(int(i));
+  for (size_t i = size_t(phase->second); i < ticks.size(); i += size_t(used)) out.push_back(int(i));
   return out;
 }
 
@@ -1013,8 +1066,7 @@ std::optional<Real> beatJitter(const std::vector<Real>& ticks) {
 // local mean removed), peaks at least kOnsetMinGapSec apart and above
 // kOnsetRel times the 99th percentile, the time interpolated between frames.
 constexpr Real kOnsetFrameSec = 0.023, kOnsetMinGapSec = 0.05, kOnsetRel = 0.1;
-
-struct Onsets { std::vector<Real> times, strengths; };
+constexpr int kDefaultMeter = 4;  // downbeats when the bar is unknown
 
 Onsets measureOnsets(const std::vector<Real>& audio, Real sr) {
   const int frameSize = 1 << int(std::lround(std::log2(kOnsetFrameSec * sr)));
@@ -1095,18 +1147,26 @@ Onsets measureOnsets(const std::vector<Real>& audio, Real sr) {
 constexpr Real kMicroMaxIntervalDev = 0.2, kMicroMinSlotShare = 0.25, kMicroFinerGain = 0.2;
 constexpr int kMicroMinBars = 8;
 
-std::optional<Rhythm::Microtiming> measureMicrotiming(const std::vector<Real>& audio, Real sr,
-                                                     const std::vector<Real>& ticks, const Rhythm& r) {
+// Beats per bar: the whole number of beat ticks closest to the rhythm's bar,
+// 1 when the bar is not within 15 % of a whole number of beats (or over 12).
+int beatsPerBar(const std::vector<Real>& ticks, const Rhythm& r) {
+  std::vector<Real> ibi;
+  for (size_t i = 1; i < ticks.size(); ++i) ibi.push_back(ticks[i] - ticks[i - 1]);
+  const Real beat = median(ibi);
+  if (!(beat > 0)) return 1;
+  const Real ratio = r.barSec / beat;
+  const int B = int(std::lround(ratio));
+  return (B < 1 || B > 12 || std::abs(ratio - B) > 0.15 * B) ? 1 : B;
+}
+
+std::optional<Rhythm::Microtiming> measureMicrotiming(const std::vector<Real>& ticks, const Rhythm& r,
+                                                     const Onsets& on) {
   if (ticks.size() < 2 * kMicroMinBars) return std::nullopt;
   std::vector<Real> ibi;
   for (size_t i = 1; i < ticks.size(); ++i) ibi.push_back(ticks[i] - ticks[i - 1]);
   const Real beat = median(ibi);
   if (!(beat > 0)) return std::nullopt;
-  const Real ratio = r.barSec / beat;
-  int B = int(std::lround(ratio));
-  if (B < 1 || B > 12 || std::abs(ratio - B) > 0.15 * B) B = 1;
-
-  const Onsets on = measureOnsets(audio, sr);
+  const int B = beatsPerBar(ticks, r);
   if (on.times.size() < size_t(4 * kMicroMinBars)) return std::nullopt;
 
   // Phase: the tick offset whose ticks carry the strongest onsets.
@@ -1405,9 +1465,12 @@ Features analyze(const std::string& file, const Options& opt) {
 
   // Pulse, bar, accents and tempo curve.
   if (!silent) f.rhythm = measureRhythm(audio, sr);
+  // Note onsets, for microtiming, downbeats and --onsets.
+  std::optional<Onsets> onsets;
+  if (!silent && (f.rhythm || opt.onsets || opt.downbeats)) onsets = measureOnsets(audio, sr);
   if (f.rhythm) {
     f.rhythm->tempoStability.jitterPct = beatJitter(f.ticks);
-    f.rhythm->microtiming = measureMicrotiming(audio, sr, f.ticks, *f.rhythm);
+    f.rhythm->microtiming = measureMicrotiming(f.ticks, *f.rhythm, *onsets);
   }
 
   // Silence at start and end.
@@ -1419,7 +1482,20 @@ Features analyze(const std::string& file, const Options& opt) {
   if (opt.waveformBins > 0) f.waveform = measureWaveform(audio, opt.waveformBins);
 
   // Downbeats (needs the beat ticks).
-  if (opt.downbeats) f.downbeatIndexes = measureDownbeats(audio, f.ticks, sr, opt.meter);
+  if (opt.downbeats) {
+    // --meter, else the measured bar (or twice it, see measureDownbeats),
+    // else kDefaultMeter.
+    std::vector<int> meters{opt.meter};
+    if (opt.meter == 0) {
+      const int B = f.rhythm ? beatsPerBar(f.ticks, *f.rhythm) : 1;
+      if (B >= 2) meters = {B};
+      else meters = {kDefaultMeter};
+      if (B >= 1 && 2 * B <= 12 && 2 * B != meters.front()) meters.push_back(2 * B);
+    }
+    f.downbeatIndexes = measureDownbeats(audio, f.ticks, sr, meters, onsets ? &*onsets : nullptr,
+                                         f.downbeatMeter);
+  }
+  if (opt.onsets) f.onsets = std::move(onsets);
 
   // Fingerprint; none for digital silence.
   if (opt.fingerprint && !isDigitalSilence(audio)) measureFingerprint(audio, sr, f);
@@ -1529,12 +1605,31 @@ void printFile(std::ostream& o, const std::string& file, const Features& f,
     o << "]";
   }
   if (opt.downbeats) {
-    o << ",\n" << in << "\"downbeatIndexes\": ";
+    o << ",\n" << in << "\"downbeatMeter\": " << f.downbeatMeter
+      << ",\n" << in << "\"downbeatIndexes\": ";
     if (f.downbeatIndexes) {
       o << "[";
       for (size_t i = 0; i < f.downbeatIndexes->size(); ++i)
         o << (i ? ", " : "") << (*f.downbeatIndexes)[i];
       o << "]";
+    } else {
+      o << "null";
+    }
+  }
+  if (opt.onsets) {
+    o << ",\n" << in << "\"onsets\": ";
+    if (f.onsets) {
+      // Strength 0..255 relative to the strongest onset, at least 1.
+      Real top = 0;
+      for (Real v : f.onsets->strengths) top = std::max(top, v);
+      o << "{\"schema\": " << kSchema << ", \"timesMs\": [";
+      for (size_t i = 0; i < f.onsets->times.size(); ++i)
+        o << (i ? ", " : "") << std::lround(f.onsets->times[i] * 1000);
+      o << "], \"strengths\": [";
+      for (size_t i = 0; i < f.onsets->strengths.size(); ++i)
+        o << (i ? ", " : "")
+          << std::clamp(top > 0 ? std::lround(f.onsets->strengths[i] / top * 255) : 0L, 1L, 255L);
+      o << "]}";
     } else {
       o << "null";
     }
@@ -1597,7 +1692,9 @@ void usage(std::ostream& o) {
        "Options:\n"
        "  -b, --beats            include beat positions (seconds)\n"
        "  -d, --downbeats        include downbeatIndexes (indexes into beats); implies --beats\n"
-       "  -m, --meter N          beats per bar for --downbeats, 2..12 (default 4)\n"
+       "  -m, --meter N          beats per bar for --downbeats, 2..12 (default: from the\n"
+       "                         measured bar, else 4)\n"
+       "      --onsets           include note onsets (timesMs, strengths 0..255)\n"
        "  -w, --waveform[=BINS]  include BINS waveform peaks, 0..255 (default 150)\n"
        "  -p, --fingerprint      include a Chromaprint fingerprint of the first 120 s\n"
        "  -a, --array            print a JSON array even for a single file\n"
@@ -1635,6 +1732,7 @@ int main(int argc, char** argv) {
       }
     }
     else if (a == "-p" || a == "--fingerprint") opt.fingerprint = true;
+    else if (a == "--onsets") opt.onsets = true;
     else if (a == "-a" || a == "--array") opt.array = true;
     else if (a == "-s" || a == "--silence-threshold") {
       if (i + 1 < argc && std::string(argv[i + 1]) == "auto") {

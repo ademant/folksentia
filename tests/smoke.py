@@ -85,7 +85,7 @@ def main():
         f.write(b"RIFF not really a wav file")
 
     # Click track: tempo, beats, downbeats, silence, schema.
-    rc, out, text, _ = run("--downbeats", "--waveform=10", j("clicks.wav"))
+    rc, out, text, _ = run("--downbeats", "--meter", "4", "--waveform=10", "--onsets", j("clicks.wav"))
     check(rc == 0, "clicks: exit 0")
     check(isinstance(out, dict) and out["schema"] == 1, "clicks: single object, schema 1")
     check(near(out["bpm"], 120, 2), f"clicks: bpm ~120 (got {out['bpm']})")
@@ -97,12 +97,23 @@ def main():
     beats_text = re.search(r'"beats": \[([^\]]*)\]', text).group(1)
     check(all(re.fullmatch(r"\d+\.\d{3}", b.strip()) for b in beats_text.split(",")),
           "clicks: beats printed with 3 decimals")
+    check(out["downbeatMeter"] == 4, f"clicks --meter 4: downbeatMeter 4 (got {out['downbeatMeter']})")
     db = out["downbeatIndexes"]
     check(db is not None and all(b - a == 4 for a, b in zip(db, db[1:])), f"clicks: downbeats every 4 beats ({db})")
     if db:
         # bass hits are at 1 s + multiples of 2 s
         phase = (out["beats"][db[0]] - 1.0) % 2.0
         check(min(phase, 2.0 - phase) < 0.07, f"clicks: downbeats on the bass hits (offset {phase:.3f} s)")
+    on = out["onsets"]
+    check(on is not None and on["schema"] == 1 and len(on["timesMs"]) == len(on["strengths"]),
+          "clicks: onsets object")
+    if on:
+        click_ms = [1000 + 500 * k for k in range(40)]
+        hit = sum(any(abs(t - c) <= 15 for t in on["timesMs"]) for c in click_ms)
+        check(hit >= 38 and len(on["timesMs"]) <= 44, f"clicks: an onset on each click ({hit}/40, {len(on['timesMs'])} onsets)")
+        check(all(1 <= v <= 255 for v in on["strengths"]) and max(on["strengths"]) == 255,
+              "clicks: onset strengths 1..255, strongest 255")
+        check(on["timesMs"] == sorted(on["timesMs"]), "clicks: onsets in time order")
     check(out["waveform"]["bins"] == 10 and max(out["waveform"]["peaks"]) == 255, "clicks: waveform")
     check(out["loudness"]["integratedLufs"] is not None and out["loudness"]["truePeakDbtp"] is not None,
           "clicks: loudness measured")
@@ -138,6 +149,15 @@ def main():
     e = wr and wr["accents"]["energy"]
     check(e is not None and e[0] == 1 and all(v < 0.6 for v in e[1:]),
           f"accented 3/4 clicks: one loud beat per bar in the accents ({e})")
+    check("onsets" not in w and "downbeatMeter" not in w, "accented 3/4 clicks: no onsets, no downbeatMeter by default")
+    # Meter from the measured bar; the onsets give the phase (no bass).
+    rc, w, _, _ = run("--downbeats", j("waltz.wav"))
+    wd = w["downbeatIndexes"]
+    check(w["downbeatMeter"] == 3, f"accented 3/4 clicks: downbeatMeter 3 from the bar (got {w['downbeatMeter']})")
+    check(wd is not None and all(b - a == 3 for a, b in zip(wd, wd[1:])), f"accented 3/4 clicks: downbeats every 3 beats ({wd})")
+    if wd:
+        phase = w["beats"][wd[0]] % 1.2
+        check(min(phase, 1.2 - phase) < 0.07, f"accented 3/4 clicks: downbeats on the loud beats (offset {phase:.3f} s)")
 
     # Tempo stability: steady clicks barely move; clicks speeding up from 100
     # to 125 BPM over 60 s drift and have a positive slope.
@@ -195,10 +215,17 @@ def main():
     check(rc == 0 and near(out["bpm"], 120, 2), f"clicks -r 16000: bpm ~120 (got {out and out['bpm']})")
 
     rc, out, _, _ = run("--downbeats", "--meter", "3", j("clicks.wav"))
-    check(rc == 0, "clicks --meter 3: exit 0")
+    check(rc == 0 and out["downbeatMeter"] == 3, "clicks --meter 3: exit 0, downbeatMeter 3")
+
+    # Without --meter: the bass hits every 4 beats win over the measured bar.
+    rc, out, _, _ = run("--downbeats", j("clicks.wav"))
+    db = out["downbeatIndexes"]
+    check(rc == 0 and out["downbeatMeter"] == 4 and db is not None and all(b - a == 4 for a, b in zip(db, db[1:])),
+          f"clicks: meter 4 found without --meter ({out['downbeatMeter']}, {db})")
 
     # Digital silence: unknown values are null.
-    rc, out, _, _ = run("--beats", "--downbeats", j("silence.wav"))
+    rc, out, _, _ = run("--beats", "--downbeats", "--onsets", j("silence.wav"))
+    check(rc == 0 and out["onsets"] is None, "silence: onsets null")
     check(rc == 0, "silence: exit 0")
     for field in ("bpm", "bpm_confidence", "key", "scale", "key_strength", "tuning_frequency", "tuning_cents",
                   "tuning_spread_cents", "spectral_complexity", "spectral_entropy"):
