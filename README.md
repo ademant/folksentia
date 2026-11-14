@@ -166,7 +166,7 @@ power of −3 dB.
 `loudness` (`schema` 1):
 
 - `integratedLufs`: EBU R128 integrated loudness (LUFS), from Essentia's `LoudnessEBUR128`.
-- `truePeakDbtp`: true peak in dBTP, the highest peak of either channel, from `TruePeakDetector` (4x oversampling).
+- `truePeakDbtp`: true peak in dBTP, the highest peak of either channel, measured as ITU-R BS.1770-4 specifies: 4x oversampling by a polyphase FIR interpolator (49-tap Hann-windowed sinc, as in libebur128).
 
 The loudness and true peak are measured at the file's own sample rate. A mono
 file is measured as dual mono (the same signal on both channels). Both values are

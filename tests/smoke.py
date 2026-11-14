@@ -207,18 +207,18 @@ def main():
     check(drift["tuning_spread_cents"] is not None and drift["tuning_spread_cents"] > 30,
           f"tone rising 47 cents: large spread ({drift['tuning_spread_cents']})")
 
-    # True peak is measured in blocks of 2^19 samples: a peak on a block
-    # boundary must read the same as one inside a block.
+    # True peak: a burst at fs/4, sampled 45° off its crests, has samples at
+    # 0.354 (-9 dB) but crests at 0.5, so its true peak is -6 dBTP. Placed at
+    # the start, the middle and the very end of the file.
     peaks = []
-    for name, centre in (("tp-inside.wav", 200000), ("tp-boundary.wav", 1 << 19)):
+    for name, centre in (("tp-start.wav", 2000), ("tp-middle.wav", 200000), ("tp-end.wav", (1 << 20) - 2000)):
         burst = [0.0] * (1 << 20)
         for k in range(centre - 2000, centre + 2000):
             burst[k] = 0.5 * math.sin(math.pi / 2 * k + math.pi / 4)  # fs/4 at 45°: inter-sample peaks
         write_wav(j(name), 48000, 1, burst)
         rc, out, _, _ = run(j(name))
         peaks.append(out["loudness"]["truePeakDbtp"])
-    check(near(peaks[0], -6.0, 0.2) and near(peaks[1], peaks[0], 0.01),
-          f"true peak across a block boundary ({peaks[1]}) equals inside ({peaks[0]})")
+    check(all(near(p, -6.0, 0.2) for p in peaks), f"true peak of inter-sample crests: -6 dBTP ({peaks})")
 
     # Version.
     p = subprocess.run([BINARY, "--version"], capture_output=True, text=True)
