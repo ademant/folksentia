@@ -84,6 +84,10 @@ struct Rhythm {
   std::vector<Real> accentEnergy, accentBass;  // per pulse of the bar, 0..1
   struct Point { Real startSec, barsPerMin; };
   std::vector<Point> tempoCurve;
+  // Drift and slope of the bar tempo (measureRhythm), jitter of the beat
+  // ticks (beatJitter); each unset when there is too little to measure.
+  struct Stability { std::optional<Real> jitterPct, driftPct, slopePctPerMin; };
+  Stability tempoStability;
 };
 
 struct Features {
@@ -773,6 +777,93 @@ std::vector<int> alignRotations(const std::vector<std::vector<Real>>& profiles) 
   return rot;
 }
 
+// Drift and slope of the bar tempo, from short windows (kDriftBars bars, at
+// least kDriftMinSec, a quarter window apart). Per window, every pulse from
+// kDriftLow to kDriftHigh times the track's pulse (steps of kDriftStep) is
+// scored by how well its multiples line up with the window's autocorrelation,
+// relative to the window's best. The pulse path through the windows is the
+// one with the highest total score minus kDriftJumpCost per 1 % change
+// between neighbouring windows (Viterbi): a lasting change, such as the next
+// tune of a suite, wins, a single noisy window does not. Each window's bar of
+// the same number of pulses is then refined. Drift is the 10th to 90th
+// percentile range of the windows' tempo in % of their median, slope its
+// least-squares trend in % of the median per minute.
+constexpr Real kDriftBars = 4, kDriftMinSec = 8, kDriftLow = 0.8, kDriftHigh = 1.25;
+constexpr Real kDriftStep = 0.004, kDriftJumpCost = 0.03;
+constexpr size_t kDriftMinWindows = 5;
+constexpr Real kDriftMinBarScore = 0.1;  // weaker bars give no usable tempo path
+
+void measureBarDrift(const Envelopes& e, Rhythm& r, size_t maxLag) {
+  if (r.barScore < kDriftMinBarScore) return;
+  const Real rate = e.rate;
+  const size_t len = size_t(std::max(kDriftMinSec, kDriftBars * r.barSec) * rate);
+  const size_t hop = std::max<size_t>(1, len / 4);
+  if (e.onsets.size() < len) return;
+  const int states = int(std::log(kDriftHigh / kDriftLow) / kDriftStep) + 1;
+  const auto statePulse = [&](int j) { return r.pulseSec * kDriftLow * std::exp(j * kDriftStep); };
+  std::vector<std::vector<Real>> acs;
+  std::vector<Real> minutes;
+  std::vector<std::vector<Real>> score;
+  for (size_t from = 0; from + len <= e.onsets.size(); from += hop) {
+    auto ac = autocorrelation(e.onsets, from, from + len, maxLag);
+    if (ac.size() <= maxLag || !(ac[0] > 0)) continue;
+    std::vector<Real> sc(states);
+    for (int j = 0; j < states; ++j) sc[j] = pulseScore(ac, statePulse(j), rate);
+    const Real top = *std::max_element(sc.begin(), sc.end());
+    if (!(top > 0)) continue;
+    for (Real& v : sc) v /= top;
+    score.push_back(std::move(sc));
+    acs.push_back(std::move(ac));
+    minutes.push_back((Real(from) + Real(len) / 2) / rate / 60);
+  }
+  if (score.size() < kDriftMinWindows) return;
+  // Viterbi over the pulse states.
+  const Real jump = kDriftJumpCost * kDriftStep * 100;  // cost per state step
+  std::vector<Real> total = score[0];
+  std::vector<std::vector<int>> from(score.size(), std::vector<int>(states, 0));
+  for (size_t w = 1; w < score.size(); ++w) {
+    std::vector<Real> next(states);
+    for (int j = 0; j < states; ++j) {
+      Real best = -1e30;
+      for (int k = 0; k < states; ++k) {
+        const Real v = total[k] - jump * std::abs(j - k);
+        if (v > best) { best = v; from[w][j] = k; }
+      }
+      next[j] = best + score[w][j];
+    }
+    total = std::move(next);
+  }
+  std::vector<int> path(score.size());
+  path.back() = int(std::max_element(total.begin(), total.end()) - total.begin());
+  for (size_t w = score.size() - 1; w > 0; --w) path[w - 1] = from[w][path[w]];
+  std::vector<Real> tempo;
+  for (size_t w = 0; w < score.size(); ++w) {
+    const Real bar = refinePeriod(acs[w], r.barPulses * statePulse(path[w]), 0.02, rate);
+    tempo.push_back(60 / bar);
+  }
+  if (tempo.size() < kDriftMinWindows) return;
+  std::vector<Real> sorted = tempo;
+  std::sort(sorted.begin(), sorted.end());
+  const auto at = [&](Real q) {  // linear interpolation between ranks
+    const Real x = q * Real(sorted.size() - 1);
+    const size_t i = size_t(x);
+    return i + 1 < sorted.size() ? sorted[i] + (x - Real(i)) * (sorted[i + 1] - sorted[i]) : sorted[i];
+  };
+  const Real mid = median(tempo);
+  Real mt = 0, mv = 0;
+  for (size_t i = 0; i < tempo.size(); ++i) { mt += minutes[i]; mv += tempo[i]; }
+  mt /= Real(tempo.size());
+  mv /= Real(tempo.size());
+  Real sxy = 0, sxx = 0;
+  for (size_t i = 0; i < tempo.size(); ++i) {
+    sxy += (minutes[i] - mt) * (tempo[i] - mv);
+    sxx += (minutes[i] - mt) * (minutes[i] - mt);
+  }
+  const auto r2 = [](Real v) { return std::round(v * 100) / 100; };
+  r.tempoStability.driftPct = r2((at(0.9) - at(0.1)) / mid * 100);
+  if (sxx > 0) r.tempoStability.slopePctPerMin = r2(sxy / sxx / mid * 100);
+}
+
 std::optional<Rhythm> measureRhythm(const std::vector<Real>& audio, Real sr) {
   if (audio.size() < kRhythmMinSec * sr) return std::nullopt;
   const Envelopes e = rhythmEnvelopes(audio, sr);
@@ -851,6 +942,7 @@ std::optional<Rhythm> measureRhythm(const std::vector<Real>& audio, Real sr) {
     r.alternatives.push_back({cands[others[i]].pulses, cands[others[i]].pulses * r.pulseSec, cands[others[i]].ac});
   for (size_t w = 0; w < windows.size(); ++w)
     r.tempoCurve.push_back({windows[w].startSec, 60 / c.periods[w]});
+  measureBarDrift(e, r, maxLag);
 
   // Accents: energy and bass per pulse of the bar, windows aligned on energy,
   // rotated so the strongest pulse comes first, relative to it.
@@ -884,6 +976,29 @@ std::optional<Rhythm> measureRhythm(const std::vector<Real>& audio, Real sr) {
     }
   }
   return r;
+}
+
+// Beat jitter: per window of kJitterBeats beat intervals (kJitterHop apart),
+// the mean absolute deviation of the intervals from their median, in % of the
+// median; the median over the windows, so slow drift and the beat tracker's
+// switches between note values do not count. The ticks are quantised to the
+// tracker's frames (11.6 ms), which sets a floor of about 1 %.
+constexpr size_t kJitterBeats = 8, kJitterHop = 4, kJitterMinIntervals = 20;
+
+std::optional<Real> beatJitter(const std::vector<Real>& ticks) {
+  std::vector<Real> ibi;
+  for (size_t i = 1; i < ticks.size(); ++i)
+    if (ticks[i] > ticks[i - 1]) ibi.push_back(ticks[i] - ticks[i - 1]);
+  if (ibi.size() < kJitterMinIntervals) return std::nullopt;
+  std::vector<Real> jitter;
+  for (size_t s = 0; s + kJitterBeats <= ibi.size(); s += kJitterHop) {
+    const std::vector<Real> w(ibi.begin() + s, ibi.begin() + s + kJitterBeats);
+    const Real m = median(w);
+    Real dev = 0;
+    for (Real x : w) dev += std::abs(x - m);
+    jitter.push_back(dev / Real(w.size()) / m * 100);
+  }
+  return std::round(median(jitter) * 100) / 100;
 }
 
 Features analyze(const std::string& file, const Options& opt) {
@@ -1067,6 +1182,7 @@ Features analyze(const std::string& file, const Options& opt) {
 
   // Pulse, bar, accents and tempo curve.
   if (!silent) f.rhythm = measureRhythm(audio, sr);
+  if (f.rhythm) f.rhythm->tempoStability.jitterPct = beatJitter(f.ticks);
 
   // Silence at start and end.
   f.silenceThresholdDb = opt.silenceAuto ? autoSilenceThreshold(f, opt.silenceThresholdDb)
@@ -1118,7 +1234,11 @@ void printRhythm(std::ostream& o, const std::optional<Rhythm>& r, const std::str
   for (size_t i = 0; i < r->tempoCurve.size(); ++i)
     o << (i ? ", " : "") << "{\"startSec\": " << jsonSeconds(r->tempoCurve[i].startSec)
       << ", \"barsPerMin\": " << jsonNum(Real(std::round(r->tempoCurve[i].barsPerMin * 10) / 10)) << "}";
-  o << "]\n" << in << "}";
+  o << "],\n" << in2 << "\"tempoStability\": ";
+  const auto& t = r->tempoStability;
+  o << "{\"jitterPct\": " << jsonNum(t.jitterPct) << ", \"driftPct\": " << jsonNum(t.driftPct)
+    << ", \"slopePctPerMin\": " << jsonNum(t.slopePctPerMin) << "}";
+  o << "\n" << in << "}";
 }
 
 // Indentation: `indent` is the outer indent; members use indent + 2 spaces.

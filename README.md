@@ -243,7 +243,8 @@ silence, files shorter than 10 s, or when no cycle can be measured.
   "barScore": 0.34,
   "alternatives": [{"pulses": 6, "sec": 3.161, "score": 0.23}, {"pulses": 2, "sec": 1.054, "score": 0.11}],
   "accents": {"energy": [1, 0.57, 0.41], "bass": [0.73, 1, 0.87]},
-  "tempoCurve": [{"startSec": 0.0, "barsPerMin": 38}, {"startSec": 30.0, "barsPerMin": 37.9}]
+  "tempoCurve": [{"startSec": 0.0, "barsPerMin": 38}, {"startSec": 30.0, "barsPerMin": 37.9}],
+  "tempoStability": {"jitterPct": 1.22, "driftPct": 2.92, "slopePctPerMin": 0.38}
 }
 ```
 
@@ -263,7 +264,25 @@ silence, files shorter than 10 s, or when no cycle can be measured.
   (`[1, 0.57, 0.41]`), two mazurkas almost even beats (`[1, 0.86, 0.91]`,
   `[1, 0.85, 0.87]`).
 - `tempoCurve`: bars per minute per 30-second window (one point for shorter
-  files), which shows accelerandos.
+  files), which shows accelerandos. Each window's bar is searched within
+  ±5 % of the whole track's, so larger changes show in `tempoStability`.
+- `tempoStability`: how steady the tempo is; each value is `null` when there
+  is too little to measure.
+  - `jitterPct`: beat-to-beat irregularity: per 8 beat intervals the mean
+    absolute deviation from their median, in % of it; the median over the
+    track. The beat times are quantised to 11.6 ms, so about 0.3–1 % is the
+    floor (steady clicks read 0.3). `null` with fewer than 20 beat intervals.
+  - `driftPct`: how far the bar tempo moves over the track, the 10th to 90th
+    percentile range in % of the median. The tempo is measured in windows of
+    4 bars (at least 8 s), and the path through the windows is chosen to
+    follow lasting changes but not single noisy windows; changes between 0.8
+    and 1.25 times the track's tempo are seen.
+  - `slopePctPerMin`: the trend of that tempo, in % per minute; positive for
+    an accelerando (clicks from 100 to 125 BPM in a minute read 22).
+  - `driftPct` and `slopePctPerMin` are `null` when `barScore` is below 0.1:
+    without a clear bar there is no tempo to follow (rubato, free singing).
+  On 140 tracks of a folk dance library, the median jitter was 1.2 %, drift
+  2.9 % (90th percentile 12 %) and slope 0 %/min.
 
 On the labelled tunes in `scripts/eval/folk_labels.json`, the bar is right for
 6 of 7 (three hanter dros, a valse à 11, a valse and two mazurkas); an a

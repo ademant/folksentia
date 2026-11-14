@@ -139,6 +139,24 @@ def main():
     check(e is not None and e[0] == 1 and all(v < 0.6 for v in e[1:]),
           f"accented 3/4 clicks: one loud beat per bar in the accents ({e})")
 
+    # Tempo stability: steady clicks barely move; clicks speeding up from 100
+    # to 125 BPM over 60 s drift and have a positive slope.
+    st = rh and rh["tempoStability"]
+    check(st is not None and st["jitterPct"] is not None and st["jitterPct"] < 1.5
+          and st["driftPct"] is not None and st["driftPct"] < 2 and abs(st["slopePctPerMin"]) < 2,
+          f"clicks: steady tempo ({st})")
+    rate, t, accel = 22050, 0.0, [0.0] * (61 * 22050)
+    while t < 60:
+        start = int(t * rate)
+        for k in range(int(0.03 * rate)):
+            accel[start + k] += 0.5 * math.sin(2 * math.pi * 1000 * k / rate) * math.exp(-k / (0.008 * rate))
+        t += 60 / (100 + 25 * t / 60)
+    write_wav(j("accel.wav"), rate, 1, accel)
+    rc, out, _, _ = run(j("accel.wav"))
+    st = out["rhythm"] and out["rhythm"]["tempoStability"]
+    check(st is not None and st["driftPct"] is not None and 12 < st["driftPct"] < 25
+          and 15 < st["slopePctPerMin"] < 30, f"accelerating clicks: drift and positive slope ({st})")
+
     # Tempo must not depend on the analysis rate.
     rc, out, _, _ = run("-r", "16000", j("clicks.wav"))
     check(rc == 0 and near(out["bpm"], 120, 2), f"clicks -r 16000: bpm ~120 (got {out and out['bpm']})")
