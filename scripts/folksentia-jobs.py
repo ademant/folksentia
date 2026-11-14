@@ -170,6 +170,18 @@ def run_job(job, root, args, binary, version, ignore_mtime, timeout, procs):
     return {"job": job, "local": local, "toolVersion": version, "result": result}, status
 
 
+class Stop(Exception):
+    """A termination signal, handled like Ctrl-C."""
+
+    def __init__(self, signum):
+        super().__init__(signum)
+        self.signum = signum
+
+
+def on_stop(signum, frame):
+    raise Stop(signum)
+
+
 class Procs:
     """Running child processes, to stop them on Ctrl-C."""
 
@@ -223,6 +235,13 @@ def main():
     print(f"folksentia-jobs: {len(jobs)} jobs, {len(jobs) - len(todo)} already done, "
           f"{len(todo)} to run with folksentia {version}, {a.parallel} at a time", file=sys.stderr)
 
+    # The folksentia processes run in their own sessions, so a signal to the
+    # wrapper does not reach them: SIGTERM and SIGHUP stop them like Ctrl-C
+    # does. A signal that was ignored at start (nohup) stays ignored.
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        if signal.getsignal(sig) != signal.SIG_IGN:
+            signal.signal(sig, on_stop)
+
     counts = {}
     procs = Procs()
     start = time.monotonic()
@@ -246,12 +265,12 @@ def main():
                 elif n % 25 == 0 or n == len(todo):
                     rate = n / (time.monotonic() - start)
                     print(f"[{n}/{len(todo)}] {rate * 60:.1f} tracks/min", file=sys.stderr)
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, Stop) as e:
             for f in futures:
                 f.cancel()
             procs.kill_all()
             print("folksentia-jobs: interrupted; run again to resume", file=sys.stderr)
-            return 130
+            return 128 + (e.signum if isinstance(e, Stop) else signal.SIGINT)
 
     summary = ", ".join(f"{v} {k}" for k, v in sorted(counts.items())) or "nothing to do"
     print(f"folksentia-jobs: {summary}", file=sys.stderr)

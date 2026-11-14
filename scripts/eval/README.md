@@ -8,6 +8,10 @@ so that changes and parameter choices can be measured instead of guessed.
 | EBU Tech 3341 signals (synthesised) | integrated loudness ±0.1 LU, true peak +0.2/−0.4 dB, plus documented edge cases (mono, 44.1 kHz, silence) | stdlib only |
 | [Ballroom](https://mtg.upf.edu/ismir2004/contest/tempoContest/node5.html) (698 × 30 s, 10 dance styles) | tempo, beats, downbeats | numpy, mir_eval |
 
+For files without ground truth, [`REFERENCE_TOOLS.md`](REFERENCE_TOOLS.md)
+lists Debian tools that compute the same values independently and how much
+agreement to expect from each.
+
 Data and results live outside the repo in `$FOLKSENTIA_EVAL_DATA`
 (default `~/data/folksentia-eval`). The Ballroom audio is copyrighted: never
 commit it. Commit only scripts and summary tables.
