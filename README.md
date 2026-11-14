@@ -59,8 +59,9 @@ builddir/folksentia --fingerprint *.opus > fingerprints.json
 | option | meaning |
 |---|---|
 | `-b`, `--beats` | include beat positions (seconds) as `beats` |
-| `-d`, `--downbeats` | include `downbeatIndexes`; implies `--beats` |
-| `-m`, `--meter N` | beats per bar for `--downbeats`, 2 to 12 (default 4) |
+| `-d`, `--downbeats` | include `downbeatMeter` and `downbeatIndexes`; implies `--beats` |
+| `-m`, `--meter N` | beats per bar for `--downbeats`, 2 to 12 (default: from the measured bar, else 4) |
+| `--onsets` | include note onsets as `onsets` (see below) |
 | `-w`, `--waveform[=BINS]` | include `waveform` with BINS peaks (default 150) |
 | `-p`, `--fingerprint` | include `fingerprint`, a Chromaprint fingerprint of the first 120 s |
 | `-a`, `--array` | print a JSON array even when only one file is given |
@@ -95,7 +96,8 @@ Every object has `"schema": 1`. Every field listed below is always present in
 its object; a field whose value is unknown is `null`, never missing. The
 exceptions are the fields that are only printed when their option is given:
 `waveform` (`--waveform`), `beats` (`--beats` or `--downbeats`),
-`downbeatIndexes` (`--downbeats`) and `fingerprint` (`--fingerprint`), and
+`downbeatMeter` and `downbeatIndexes` (`--downbeats`), `onsets` (`--onsets`)
+and `fingerprint` (`--fingerprint`), and
 `file_base64`, which is only printed for paths that are not valid UTF-8.
 
 A file that cannot be decoded gives an error object in place of its analysis:
@@ -123,7 +125,9 @@ Analysis object fields:
 | `loudness` | object | see below |
 | `waveform` | object | `--waveform` only, see below |
 | `beats` | array of seconds | `--beats` or `--downbeats` only |
+| `downbeatMeter` | int | `--downbeats` only; beats per bar used for `downbeatIndexes` |
 | `downbeatIndexes` | array of ints or `null` | `--downbeats` only; indexes into `beats` that start a bar |
+| `onsets` | object or `null` | `--onsets` only, see below; `null` for digital silence |
 | `fingerprint` | object or `null` | `--fingerprint` only, see below |
 | `rhythm` | object or `null` | pulse, bar, accents and tempo curve (experimental), see below |
 
@@ -202,11 +206,32 @@ file is measured as dual mono (the same signal on both channels). All values are
 
 `downbeatIndexes` is a heuristic and is `null` when there is no clear bar
 structure, for example with fewer than two bars of beats or when no bar phase
-is clearly louder than the others. It assumes `--meter` beats per bar (default
-4, e.g. 3 for a waltz); it does not detect the meter. The bass (below 150 Hz)
-energy just after each beat is compared across the possible bar phases. The
-phase is chosen when its beats are at least 20% louder than the other beats.
-Treat the threshold as untuned until it has been checked on known files.
+is clearly louder than the others. With `--meter N` it uses N beats per bar.
+Without it, the beats per bar come from the measured bar (`rhythm.barSec`
+divided by the median beat interval, when that is within 15% of a whole
+number from 2 to 12), and twice that is tried as well; twice is chosen only
+when its phase is at least 25% clearer. Without a measured bar it uses 4, and
+twice the measured bar is still tried. `downbeatMeter` says which was used.
+The bass (below 150 Hz) energy just after each beat is compared across the
+possible bar phases. The phase is chosen when its beats are at least 20%
+louder than the other beats. When the bass gives no clear phase, the same is
+tried with the strongest note onset within 50 ms of each beat. Treat the
+thresholds as untuned until they have been checked on known files.
+
+The measured bar fails when the beat tracker counts a different note value
+than the bar's pulse (e.g. some waltzes, where `barSec` is 2.5 beats); the
+meter then falls back to 4. Pass `--meter` when the meter is known.
+
+`onsets` (`schema` 1, `--onsets` only): note onsets, the same ones `rhythm`
+and `microtiming` use (log spectral flux, peaks at least 50 ms apart).
+
+- `timesMs`: array of onset times in integer milliseconds.
+- `strengths`: array of the same length, integers 1..255, the flux peak scaled
+  so the strongest onset is 255.
+
+About 5–7 onsets per second of dance music, roughly 20–25 KB of JSON for a
+5-minute track. Meant for onset-aware time stretching (keep transients
+unstretched) and for display.
 
 Essentia's pinned commit does not provide a downbeat or bar-tracking algorithm,
 so this is folksentia's own computation on top of the beat ticks.
