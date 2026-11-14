@@ -150,7 +150,7 @@ def main():
     rc, out, _, _ = run("--beats", "--downbeats", j("silence.wav"))
     check(rc == 0, "silence: exit 0")
     for field in ("bpm", "bpm_confidence", "key", "scale", "key_strength", "tuning_frequency", "tuning_cents",
-                  "tuning_spread_cents"):
+                  "tuning_spread_cents", "spectral_complexity", "spectral_entropy"):
         check(out[field] is None, f"silence: {field} is null")
     check(out["silence"]["leadMs"] is None and out["silence"]["tailMs"] is None, "silence: lead/tail null")
     check(out["loudness"]["integratedLufs"] is None and out["loudness"]["truePeakDbtp"] is None,
@@ -206,6 +206,17 @@ def main():
           f"steady tone: 440 Hz, spread ~0 ({steady['tuning_frequency']}, {steady['tuning_spread_cents']})")
     check(drift["tuning_spread_cents"] is not None and drift["tuning_spread_cents"] > 30,
           f"tone rising 47 cents: large spread ({drift['tuning_spread_cents']})")
+
+    # Spectral complexity and entropy: a two-partial tone uses few frequencies,
+    # noise uses all of them.
+    rng = random.Random(1)
+    write_wav(j("white.wav"), 22050, 1, [0.3 * rng.uniform(-1, 1) for _ in range(22050 * 10)])
+    rc, white, _, _ = run(j("white.wav"))
+    check(steady["spectral_complexity"] is not None and steady["spectral_complexity"] <= 4
+          and white["spectral_complexity"] > 10 * steady["spectral_complexity"],
+          f"spectral complexity: tone low, noise high ({steady['spectral_complexity']}, {white['spectral_complexity']})")
+    check(steady["spectral_entropy"] < 5 and white["spectral_entropy"] > 8,
+          f"spectral entropy: tone low, noise high ({steady['spectral_entropy']}, {white['spectral_entropy']})")
 
     # A loud bass below the peak range must not pull the tuning to its edge
     # bin (434.19 Hz at 44.1 kHz).

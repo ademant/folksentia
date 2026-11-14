@@ -118,6 +118,7 @@ Analysis object fields:
 | `tuning_spread_cents` | number or `null` | how much the tuning measured per 30 s segment varies (see below); `null` with fewer than two segments |
 | `replay_gain_db` | number | ReplayGain |
 | `loudness_db`, `dynamic_complexity` | number | Essentia's dynamic complexity and loudness |
+| `spectral_complexity`, `spectral_entropy` | number or `null` | how many frequencies the sound uses (see below); `null` for digital silence |
 | `silence` | object | see below |
 | `loudness` | object | see below |
 | `waveform` | object | `--waveform` only, see below |
@@ -125,6 +126,17 @@ Analysis object fields:
 | `downbeatIndexes` | array of ints or `null` | `--downbeats` only; indexes into `beats` that start a bar |
 | `fingerprint` | object or `null` | `--fingerprint` only, see below |
 | `rhythm` | object or `null` | pulse, bar, accents and tempo curve (experimental), see below |
+
+**Spectral complexity and entropy.** Two measures of how many frequencies a
+recording uses, each the median over all non-silent frames (2048 samples, hop
+1024, Blackman-Harris window, as in Essentia's MusicExtractor, so the values
+compare with its `spectral_complexity` and `spectral_entropy`).
+`spectral_complexity` is the number of spectral peaks per frame: 2 for a tone
+with two partials, 59 for white noise; six folk dance tracks read 9 to 20.
+`spectral_entropy` is the Shannon entropy of the magnitude spectrum in bits:
+low when the energy sits in a few tones (3 for the two-partial tone), high when
+it is spread out like noise or percussion (8.7 for white noise; at most
+log2(1025) = 10); the same six tracks read 6.9 to 7.8.
 
 **Key and tuning.** The key is detected against the measured tuning, not
 against A = 440 Hz. `key` and `scale` are `null` when `key_strength` is below
