@@ -64,7 +64,7 @@ builddir/folksentia --fingerprint *.opus > fingerprints.json
 | `-w`, `--waveform[=BINS]` | include `waveform` with BINS peaks (default 150) |
 | `-p`, `--fingerprint` | include `fingerprint`, a Chromaprint fingerprint of the first 120 s |
 | `-a`, `--array` | print a JSON array even when only one file is given |
-| `-s`, `--silence-threshold DB` | frame power in dBFS below which a frame counts as silence, −150 to 0 (default −100) |
+| `-s`, `--silence-threshold DB\|auto` | frame power in dBFS below which a frame counts as silence, −150 to 0 (default −100); `auto` sets it from the track's noise floor and loudness (see below) |
 | `-f`, `--fast` | use the faster `degara` beat tracker instead of `multifeature` (`bpm_confidence` is then always 0) |
 | `-V`, `--version` | print the version, build date, Essentia version and whether Chromaprint is available, then exit |
 | `-r`, `--sample-rate HZ` | analysis sample rate: 8000, 16000, 32000, 44100 or 48000 (default 44100); tempo and beats are always analysed at 44100 Hz |
@@ -175,13 +175,24 @@ near 0. To measure the quiet before a tune starts, pass a threshold above the
 noise floor, e.g. `--silence-threshold -50`. A full-scale sine wave has a mean
 power of −3 dB.
 
+`--silence-threshold auto` sets the threshold per track: 6 dB above
+`noiseFloorLufs`, or 40 LU below `integratedLufs` if that is higher, but always
+at least 20 LU below `integratedLufs`, so quiet music is not cut. Loudness is
+K-weighted and sums both channels while the silence frames are measured on the
+mono mix, so the threshold is converted with a fixed offset (−2.3 dB); it is an
+approximation. `thresholdDb` reports the threshold used. Digital silence has no
+loudness; the threshold then stays at −100 dB.
+
 `loudness` (`schema` 1):
 
 - `integratedLufs`: EBU R128 integrated loudness (LUFS), from Essentia's `LoudnessEBUR128`.
 - `truePeakDbtp`: true peak in dBTP, the highest peak of either channel, measured as ITU-R BS.1770-4 specifies: 4x oversampling by a polyphase FIR interpolator (49-tap Hann-windowed sinc, as in libebur128).
+- `lraLu`: loudness range (EBU Tech 3342) in LU, from Essentia's `LoudnessEBUR128`: the spread between the 10th and 95th percentile of the 3 s short-term loudness, ignoring passages more than 20 LU below its mean. Roughly 3–6 LU for a compressed master, 10–15 LU for a lively acoustic recording, 20 LU and more for classical music or field recordings.
+- `plrDb`: peak-to-loudness ratio, `truePeakDbtp − integratedLufs`; small for a heavily limited master.
+- `noiseFloorLufs`: the 2nd percentile of the momentary loudness (400 ms blocks every 100 ms), digital silence left out: the level of hiss or room tone, or of the quietest passages when the recording has no pauses.
 
-The loudness and true peak are measured at the file's own sample rate. A mono
-file is measured as dual mono (the same signal on both channels). Both values are
+The loudness values are measured at the file's own sample rate. A mono
+file is measured as dual mono (the same signal on both channels). All values are
 `null` when the value is undefined, for example for digital silence.
 
 `waveform` (`schema` 1, `--waveform` only):

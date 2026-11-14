@@ -44,6 +44,11 @@ constexpr Real kMinKeyStrength = 0.6;
 
 // Sample rate RhythmExtractor2013 is designed for.
 constexpr Real kRhythmRate = 44100;
+// Noise floor: this percentile of the momentary loudness above the minimum.
+constexpr Real kNoiseFloorPercentile = 2, kNoiseFloorMinLufs = -120;
+// --silence-threshold auto: noise floor + margin, or integrated - below, but
+// at least maxLu under the integrated loudness.
+constexpr Real kAutoSilenceNoiseMarginDb = 6, kAutoSilenceBelowLu = 40, kAutoSilenceMaxLu = 20;
 
 // Fingerprint the first kFingerprintSeconds of audio, like fpcalc's default.
 // Fixed so that fingerprints from different runs compare.
@@ -59,6 +64,7 @@ constexpr int kFingerprintVersion = 2;
 struct Options {
   Real sampleRate = 44100.;
   Real silenceThresholdDb = -100;  // frame power below this is silence
+  bool silenceAuto = false;        // --silence-threshold auto: relative to the track
   std::string rhythmMethod = "multifeature";
   bool beats = false;
   bool downbeats = false;
@@ -102,6 +108,11 @@ struct Features {
 
   // EBU R128 integrated loudness and true peak (dBTP, max over channels).
   std::optional<Real> integratedLufs, truePeakDbtp;
+  // Loudness range (EBU Tech 3342), peak-to-loudness ratio, and the noise
+  // floor (low percentile of the momentary loudness); unset for silence.
+  std::optional<Real> lraLu, plrDb, noiseFloorLufs;
+  // Silence threshold actually used (dBFS frame power).
+  Real silenceThresholdDb = -100;
 
   // Waveform peaks 0..255, one per bin; empty unless requested.
   std::vector<int> waveform;
@@ -335,6 +346,18 @@ void measureLoudness(const std::vector<StereoSample>& stereo, Real rate, Feature
     // Nothing passed the -70 LUFS absolute gate (e.g. digital silence): Essentia
     // reports the gate itself, but BS.1770 integrated loudness is undefined.
     if (*f.integratedLufs <= -70) f.integratedLufs.reset();
+    if (f.integratedLufs) f.lraLu = loudnessRange;
+
+    // Noise floor: the 2nd percentile of the momentary loudness (400 ms
+    // blocks, 100 ms apart), leaving out digital silence (Essentia reports
+    // about -300 LUFS for it).
+    std::vector<Real> blocks;
+    for (Real m : momentary) if (m > kNoiseFloorMinLufs) blocks.push_back(m);
+    if (f.integratedLufs && !blocks.empty()) {
+      const size_t k = size_t(kNoiseFloorPercentile / 100 * Real(blocks.size() - 1));
+      std::nth_element(blocks.begin(), blocks.begin() + k, blocks.end());
+      f.noiseFloorLufs = blocks[k];
+    }
   }
 
   // True peak as ITU-R BS.1770-4 Annex 2 measures it: 4x oversampling by a
@@ -369,6 +392,21 @@ void measureLoudness(const std::vector<StereoSample>& stereo, Real rate, Feature
   }
   if (peak > 0) f.truePeakDbtp = 20. * std::log10(peak);
   else f.truePeakDbtp.reset();  // digital silence: unknown
+  if (f.truePeakDbtp && f.integratedLufs) f.plrDb = *f.truePeakDbtp - *f.integratedLufs;
+}
+
+// Silence threshold relative to the track (--silence-threshold auto): frames
+// near the noise floor, or far below the track's loudness, are silence, but
+// never frames within kAutoSilenceMaxLu of the integrated loudness. Loudness
+// sums both channels and is K-weighted; the frame power is of the mono mix,
+// so the threshold is moved by 3 dB (two channels) and 0.691 dB (BS.1770
+// offset). Falls back to `fallbackDb` when the loudness is unknown.
+Real autoSilenceThreshold(const Features& f, Real fallbackDb) {
+  if (!f.integratedLufs || !f.noiseFloorLufs) return fallbackDb;
+  const Real I = *f.integratedLufs;
+  const Real lufs = std::min(std::max(*f.noiseFloorLufs + kAutoSilenceNoiseMarginDb, I - kAutoSilenceBelowLu),
+                             I - kAutoSilenceMaxLu);
+  return std::clamp(lufs + Real(0.691) - Real(3.01), Real(-150), Real(0));
 }
 
 // Peak per bin, 0..255, normalised to the loudest bin.
@@ -1031,7 +1069,9 @@ Features analyze(const std::string& file, const Options& opt) {
   if (!silent) f.rhythm = measureRhythm(audio, sr);
 
   // Silence at start and end.
-  measureSilence(audio, sr, opt.silenceThresholdDb, f);
+  f.silenceThresholdDb = opt.silenceAuto ? autoSilenceThreshold(f, opt.silenceThresholdDb)
+                                         : opt.silenceThresholdDb;
+  measureSilence(audio, sr, f.silenceThresholdDb, f);
 
   // Waveform.
   if (opt.waveformBins > 0) f.waveform = measureWaveform(audio, opt.waveformBins);
@@ -1105,14 +1145,17 @@ void printFile(std::ostream& o, const std::string& file, const Features& f,
     << in << "\"spectral_entropy\": " << jsonNum(f.spectralEntropy) << ",\n"
     << in << "\"silence\": {\n"
     << in2 << "\"schema\": " << kSchema << ",\n"
-    << in2 << "\"thresholdDb\": " << jsonNum(opt.silenceThresholdDb) << ",\n"
+    << in2 << "\"thresholdDb\": " << jsonNum(Real(std::round(f.silenceThresholdDb * 10) / 10)) << ",\n"
     << in2 << "\"leadMs\": " << jsonNum(f.leadMs) << ",\n"
     << in2 << "\"tailMs\": " << jsonNum(f.tailMs) << "\n"
     << in << "},\n"
     << in << "\"loudness\": {\n"
     << in2 << "\"schema\": " << kSchema << ",\n"
     << in2 << "\"integratedLufs\": " << jsonNum(f.integratedLufs) << ",\n"
-    << in2 << "\"truePeakDbtp\": " << jsonNum(f.truePeakDbtp) << "\n"
+    << in2 << "\"truePeakDbtp\": " << jsonNum(f.truePeakDbtp) << ",\n"
+    << in2 << "\"lraLu\": " << jsonNum(f.lraLu) << ",\n"
+    << in2 << "\"plrDb\": " << jsonNum(f.plrDb) << ",\n"
+    << in2 << "\"noiseFloorLufs\": " << jsonNum(f.noiseFloorLufs) << "\n"
     << in << "},\n"
     << in << "\"rhythm\": ";
   printRhythm(o, f.rhythm, in);
@@ -1202,8 +1245,9 @@ void usage(std::ostream& o) {
        "  -w, --waveform[=BINS]  include BINS waveform peaks, 0..255 (default 150)\n"
        "  -p, --fingerprint      include a Chromaprint fingerprint of the first 120 s\n"
        "  -a, --array            print a JSON array even for a single file\n"
-       "  -s, --silence-threshold DB\n"
-       "                         frame power (dBFS) below which a frame is silence (default -100)\n"
+       "  -s, --silence-threshold DB|auto\n"
+       "                         frame power (dBFS) below which a frame is silence (default -100);\n"
+       "                         auto: relative to the track's noise floor and loudness\n"
        "  -f, --fast             use the faster 'degara' beat tracker\n"
        "  -r, --sample-rate HZ   analysis sample rate: 8000, 16000, 32000, 44100\n"
        "                         or 48000 (default 44100)\n"
@@ -1237,12 +1281,18 @@ int main(int argc, char** argv) {
     else if (a == "-p" || a == "--fingerprint") opt.fingerprint = true;
     else if (a == "-a" || a == "--array") opt.array = true;
     else if (a == "-s" || a == "--silence-threshold") {
+      if (i + 1 < argc && std::string(argv[i + 1]) == "auto") {
+        ++i;
+        opt.silenceAuto = true;
+        continue;
+      }
       const auto db = i + 1 < argc ? parseNumber(argv[++i]) : std::nullopt;
       if (!db || *db < -150 || *db > 0) {
-        std::cerr << "folksentia: --silence-threshold needs DB between -150 and 0\n";
+        std::cerr << "folksentia: --silence-threshold needs DB between -150 and 0, or auto\n";
         return 2;
       }
       opt.silenceThresholdDb = Real(*db);
+      opt.silenceAuto = false;
     }
     else if (a == "-m" || a == "--meter") {
       const auto n = i + 1 < argc ? parseNumber(argv[++i]) : std::nullopt;

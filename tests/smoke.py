@@ -153,8 +153,8 @@ def main():
                   "tuning_spread_cents", "spectral_complexity", "spectral_entropy"):
         check(out[field] is None, f"silence: {field} is null")
     check(out["silence"]["leadMs"] is None and out["silence"]["tailMs"] is None, "silence: lead/tail null")
-    check(out["loudness"]["integratedLufs"] is None and out["loudness"]["truePeakDbtp"] is None,
-          "silence: loudness null")
+    check(all(out["loudness"][k] is None for k in ("integratedLufs", "truePeakDbtp", "lraLu", "plrDb",
+                                                   "noiseFloorLufs")), "silence: loudness null")
     check(out["beats"] == [] and out["downbeatIndexes"] is None, "silence: no beats, no downbeats")
     check(out["rhythm"] is None, "silence: rhythm null")
     check(near(out["duration"], 3, 0.001), "silence: duration 3 s")
@@ -166,6 +166,17 @@ def main():
     check(rc == 0 and near(out["silence"]["leadMs"], 2000, 10),
           f"noisy -s -50: leadMs ~2000 (got {out['silence']['leadMs']})")
     check(out["silence"]["thresholdDb"] == -50, "noisy -s -50: thresholdDb reported")
+    # auto: the noise sits at the track's noise floor, so it is silence.
+    rc, out, _, _ = run("--silence-threshold", "auto", j("noisy.wav"))
+    lo = out["loudness"]
+    check(rc == 0 and near(out["silence"]["leadMs"], 2000, 50) and -60 < out["silence"]["thresholdDb"] < -30,
+          f"noisy -s auto: leadMs ~2000 (got {out['silence']['leadMs']} at {out['silence']['thresholdDb']} dB)")
+    # -58.8 dBFS white noise: +3 dB for two channels, -0.7 dB BS.1770 offset,
+    # about +4 dB from the K-weighting's high shelf.
+    check(lo["noiseFloorLufs"] is not None and near(lo["noiseFloorLufs"], -53, 2),
+          f"noisy: noise floor ~-53 LUFS (got {lo['noiseFloorLufs']})")
+    rc, out, _, _ = run("-s", "auto", j("silence.wav"))
+    check(rc == 0 and out["silence"]["thresholdDb"] == -100, "silence -s auto: falls back to -100 dB")
 
     # Output shape.
     rc, out, _, _ = run("--array", j("silence.wav"))
@@ -206,6 +217,16 @@ def main():
           f"steady tone: 440 Hz, spread ~0 ({steady['tuning_frequency']}, {steady['tuning_spread_cents']})")
     check(drift["tuning_spread_cents"] is not None and drift["tuning_spread_cents"] > 30,
           f"tone rising 47 cents: large spread ({drift['tuning_spread_cents']})")
+
+    # Loudness range and peak-to-loudness ratio: a steady tone has no range;
+    # the same tone 20 dB quieter for the second half has a range of ~20 LU.
+    lo = steady["loudness"]
+    check(lo["lraLu"] is not None and lo["lraLu"] < 1, f"steady tone: LRA ~0 (got {lo['lraLu']})")
+    check(near(lo["plrDb"], lo["truePeakDbtp"] - lo["integratedLufs"], 0.01), "steady tone: PLR = peak - loudness")
+    write_wav(j("steps.wav"), 22050, 1, [v * (1 if k < 35 * 22050 else 0.1)
+                                         for k, v in enumerate(tones([(440, 70)]))])
+    rc, steps, _, _ = run(j("steps.wav"))
+    check(near(steps["loudness"]["lraLu"], 20, 1.5), f"tone with a 20 dB step: LRA ~20 (got {steps['loudness']['lraLu']})")
 
     # Spectral complexity and entropy: a two-partial tone uses few frequencies,
     # noise uses all of them.
