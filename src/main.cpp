@@ -13,6 +13,7 @@
 #include "version.h"  // generated: FOLKSENTIA_VERSION_INFO
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <iomanip>
@@ -325,32 +326,34 @@ void measureLoudness(const std::vector<StereoSample>& stereo, Real rate, Feature
     if (*f.integratedLufs <= -70) f.integratedLufs.reset();
   }
 
-  // TruePeakDetector holds the whole 4x oversampled signal (and copies it), so
-  // each channel goes through it in blocks. The resampler is stateless; each
-  // block is extended by kMargin samples on both sides, and the oversampled
-  // samples of those margins, distorted by the cut, are left out.
-  constexpr size_t kBlock = size_t(1) << 19, kMargin = 4096;
-  constexpr int kOversampling = 4;  // TruePeakDetector's default
+  // True peak as ITU-R BS.1770-4 Annex 2 measures it: 4x oversampling by a
+  // polyphase FIR interpolator, here a Hann-windowed sinc of 49 taps as in
+  // libebur128, then the largest absolute sample. It streams over the input
+  // and holds no oversampled copy; Essentia's TruePeakDetector runs a general
+  // sinc resampler instead and took most of the analysis time.
+  constexpr int kOversampling = 4, kTaps = 49;
+  constexpr int kPerPhase = (kTaps + kOversampling - 1) / kOversampling;
+  static const auto kPhases = [] {
+    std::array<std::array<double, kPerPhase>, kOversampling> h{};
+    for (int j = 0; j < kTaps; ++j) {
+      const double m = j - (kTaps - 1) / 2.0, x = m * M_PI / kOversampling;
+      const double sinc = std::abs(m) < 1e-9 ? 1.0 : std::sin(x) / x;
+      h[j % kOversampling][j / kOversampling] = sinc * 0.5 * (1 - std::cos(2 * M_PI * j / (kTaps - 1)));
+    }
+    return h;
+  }();
   const size_t n = stereo.size();
-  auto tp = make("TruePeakDetector", "sampleRate", rate, "oversamplingFactor", kOversampling);
-  Real peak = 0;
-  std::vector<Real> block, out, locations;
+  double peak = 0;
   for (int c = 0; c < 2; ++c) {
-    for (size_t s = 0; s < n; s += kBlock) {
-      const size_t a = s > kMargin ? s - kMargin : 0;
-      const size_t e = std::min(n, s + kBlock);
-      const size_t b = std::min(n, e + kMargin);
-      block.resize(b - a);
-      for (size_t i = a; i < b; ++i) block[i - a] = c ? stereo[i].second : stereo[i].first;
-      out.clear();
-      locations.clear();
-      tp->input("signal").set(block);
-      tp->output("output").set(out);
-      tp->output("peakLocations").set(locations);
-      tp->compute();
-      const size_t from = (s - a) * kOversampling;
-      const size_t to = std::min(out.size(), (e - a) * kOversampling);
-      for (size_t i = from; i < to; ++i) peak = std::max(peak, std::abs(out[i]));
+    std::array<double, kPerPhase> z{};  // the last kPerPhase samples, newest first
+    for (size_t i = 0; i < n + kPerPhase; ++i) {  // and run the filter out past the end
+      std::copy_backward(z.begin(), z.end() - 1, z.end());
+      z[0] = i < n ? (c ? stereo[i].second : stereo[i].first) : 0;
+      for (const auto& h : kPhases) {
+        double y = 0;
+        for (int k = 0; k < kPerPhase; ++k) y += h[k] * z[k];
+        peak = std::max(peak, std::abs(y));
+      }
     }
   }
   if (peak > 0) f.truePeakDbtp = 20. * std::log10(peak);
@@ -869,17 +872,23 @@ Features analyze(const std::string& file, const Options& opt) {
   // whole file and per kTuningSegmentSec segment for its spread.
   if (!silent) {
     const int frameSize = 4096, hopSize = 2048;
+    // SpectralPeaks reports the first bin of its range as a peak, at the
+    // bin's own frequency, whenever the spectrum still rises there (bass).
+    // That bin is a fixed number of cents off (434.19 Hz at 44.1 kHz) and
+    // would win the histogram, so peaks within two bins of either end of the
+    // range are dropped.
+    const Real kPeakMinHz = 40, kPeakMaxHz = 5000, edge = 2 * sr / frameSize;
     auto cutter = make("FrameCutter", "frameSize", frameSize, "hopSize", hopSize,
                        "startFromZero", true);
     auto window = make("Windowing", "type", "blackmanharris62");
     auto spectrum = make("Spectrum", "size", frameSize);
     auto peaks = make("SpectralPeaks", "sampleRate", sr, "maxPeaks", 60,
-                      "minFrequency", 40.0, "maxFrequency", 5000.0,
+                      "minFrequency", kPeakMinHz, "maxFrequency", kPeakMaxHz,
                       "orderBy", "magnitude", "magnitudeThreshold", 1e-5);
     auto tuning = make("TuningFrequency");
     auto segmentTuning = make("TuningFrequency");
 
-    std::vector<Real> frame, windowed, spec, freqs, mags;
+    std::vector<Real> frame, windowed, spec, allFreqs, allMags, freqs, mags;
     cutter->input("signal").set(audio);
     cutter->output("frame").set(frame);
     window->input("frame").set(frame);
@@ -887,8 +896,8 @@ Features analyze(const std::string& file, const Options& opt) {
     spectrum->input("frame").set(windowed);
     spectrum->output("spectrum").set(spec);
     peaks->input("spectrum").set(spec);
-    peaks->output("frequencies").set(freqs);
-    peaks->output("magnitudes").set(mags);
+    peaks->output("frequencies").set(allFreqs);
+    peaks->output("magnitudes").set(allMags);
     Real frequency = 0, cents = 0, segmentFrequency = 0, segmentCents = 0;
     for (auto* t : {tuning.get(), segmentTuning.get()}) {
       t->input("frequencies").set(freqs);
@@ -916,6 +925,13 @@ Features analyze(const std::string& file, const Options& opt) {
       window->compute();
       spectrum->compute();
       peaks->compute();
+      freqs.clear();
+      mags.clear();
+      for (size_t i = 0; i < allFreqs.size(); ++i) {
+        if (allFreqs[i] < kPeakMinHz + edge || allFreqs[i] > kPeakMaxHz - edge) continue;
+        freqs.push_back(allFreqs[i]);
+        mags.push_back(allMags[i]);
+      }
       tuning->compute();  // accumulates; output is the running estimate
       segmentTuning->compute();
       ++measured;

@@ -166,7 +166,7 @@ power of −3 dB.
 `loudness` (`schema` 1):
 
 - `integratedLufs`: EBU R128 integrated loudness (LUFS), from Essentia's `LoudnessEBUR128`.
-- `truePeakDbtp`: true peak in dBTP, the highest peak of either channel, from `TruePeakDetector` (4x oversampling).
+- `truePeakDbtp`: true peak in dBTP, the highest peak of either channel, measured as ITU-R BS.1770-4 specifies: 4x oversampling by a polyphase FIR interpolator (49-tap Hann-windowed sinc, as in libebur128).
 
 The loudness and true peak are measured at the file's own sample rate. A mono
 file is measured as dual mono (the same signal on both channels). Both values are
@@ -309,9 +309,12 @@ Every job gets one line:
 
 `toolVersion` is the version from `folksentia --version`. The run can be
 stopped and started again with the same arguments: jobs already in the result
-file are skipped, and a half-written last line is removed. Exit status: 0 when
-every job has a line without an error, 1 when some analysis failed, 2 for bad
-usage or an unreadable job list.
+file are skipped, and a half-written last line is removed. Ctrl-C, SIGTERM and
+SIGHUP stop the running folksentia processes too (they run in their own
+sessions); a run started in the background ignores Ctrl-C, so stop it with
+`kill`. Exit status: 0 when every job has a line without an error, 1 when some
+analysis failed, 2 for bad usage or an unreadable job list, 128 + the signal
+number when stopped.
 
 ## License
 

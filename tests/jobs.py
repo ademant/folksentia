@@ -7,9 +7,11 @@ a temporary music folder, checked line by line, then resumed.
 
 import json
 import os
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -97,6 +99,47 @@ def main():
     p = run("--jobs", str(jobs_file), "--music-root", str(root), "--out", str(tmp / "results3.jsonl"))
     l3 = {json.loads(l)["job"]["id"]: json.loads(l) for l in (tmp / "results3.jsonl").read_text().splitlines()}
     check(l3["so-ok"].get("skipped") == "changed", "without --ignore-mtime: other mtime is changed")
+
+    # SIGTERM stops the folksentia processes too: they run in their own
+    # sessions. A stand-in folksentia records its pid and sleeps.
+    fake = tmp / "fake-folksentia"
+    pids = tmp / "pids"
+    pids.mkdir()
+    fake.write_text(f"""#!/bin/sh
+[ "$1" = --version ] && {{ echo "folksentia 0.0.0"; exit 0; }}
+echo $$ > {pids}/$$
+exec sleep 60
+""")
+    fake.chmod(0o755)
+    out4 = tmp / "results4.jsonl"
+    w = subprocess.Popen([sys.executable, WRAPPER, "--folksentia", str(fake), "--jobs", str(jobs_file),
+                          "--music-root", str(root), "--out", str(out4), "-j", "2", "--ignore-mtime"],
+                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    deadline = time.monotonic() + 20
+    while len(list(pids.iterdir())) < 2 and time.monotonic() < deadline:
+        time.sleep(0.05)
+    started = [int(p.name) for p in pids.iterdir()]
+    w.terminate()
+    try:
+        w.communicate(timeout=20)
+    except subprocess.TimeoutExpired:
+        w.kill()
+        w.communicate()
+
+    def alive(pid):
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        # A zombie is dead too; it waits for a parent that is gone.
+        try:
+            return Path(f"/proc/{pid}/stat").read_text().split(") ")[1][0] != "Z"
+        except OSError:
+            return False
+    time.sleep(0.2)
+    check(len(started) == 2 and w.returncode == 128 + signal.SIGTERM and not any(alive(p) for p in started)
+          and out4.read_text() == "",
+          f"SIGTERM: exit {w.returncode}, folksentia processes stopped, no partial lines")
 
     # Bad job files.
     bad = tmp / "bad.json"
