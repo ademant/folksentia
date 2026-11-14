@@ -88,6 +88,14 @@ struct Rhythm {
   // ticks (beatJitter); each unset when there is too little to measure.
   struct Stability { std::optional<Real> jitterPct, driftPct, slopePctPerMin; };
   Stability tempoStability;
+  // Note timing against the bar grid (measureMicrotiming); unset when there
+  // are too few bars or onsets.
+  struct Microtiming {
+    Real npvi = 0, withinBarPct = 0, acrossBarsPct = 0;
+    int beatsPerBar = 0, perBeat = 0, bars = 0;
+    std::vector<Real> profile;  // onset slot positions, fraction of the bar
+  };
+  std::optional<Microtiming> microtiming;
 };
 
 struct Features {
@@ -1001,6 +1009,221 @@ std::optional<Real> beatJitter(const std::vector<Real>& ticks) {
   return std::round(median(jitter) * 100) / 100;
 }
 
+// Note onsets: log spectral flux (frames of kOnsetFrameSec, hop 1/4 frame,
+// local mean removed), peaks at least kOnsetMinGapSec apart and above
+// kOnsetRel times the 99th percentile, the time interpolated between frames.
+constexpr Real kOnsetFrameSec = 0.023, kOnsetMinGapSec = 0.05, kOnsetRel = 0.1;
+
+struct Onsets { std::vector<Real> times, strengths; };
+
+Onsets measureOnsets(const std::vector<Real>& audio, Real sr) {
+  const int frameSize = 1 << int(std::lround(std::log2(kOnsetFrameSec * sr)));
+  const int hop = frameSize / 4;
+  const Real rate = sr / hop;
+  auto window = make("Windowing", "type", "hann", "normalized", false, "zeroPhase", false);
+  auto spectrum = make("Spectrum", "size", frameSize);
+  std::vector<Real> frame(frameSize), windowed, spec, logPrev, logCur, flux;
+  window->input("frame").set(frame);
+  window->output("frame").set(windowed);
+  spectrum->input("frame").set(windowed);
+  spectrum->output("spectrum").set(spec);
+  for (size_t s = 0; s + frameSize <= audio.size(); s += hop) {
+    std::copy(audio.begin() + s, audio.begin() + s + frameSize, frame.begin());
+    window->compute();
+    spectrum->compute();
+    logCur.resize(spec.size());
+    for (size_t k = 0; k < spec.size(); ++k) logCur[k] = std::log1p(100 * spec[k]);
+    Real v = 0;
+    if (!logPrev.empty())
+      for (size_t k = 0; k < logCur.size(); ++k) v += std::max(Real(0), logCur[k] - logPrev[k]);
+    flux.push_back(v);
+    std::swap(logPrev, logCur);
+  }
+  Onsets o;
+  const long n = long(flux.size()), half = long(0.1 * rate);
+  if (n < 3) return o;
+  std::vector<Real> d(n);
+  for (long i = 0; i < n; ++i) {
+    Real sum = 0;
+    const long a = std::max(0L, i - half), b = std::min(n - 1, i + half);
+    for (long j = a; j <= b; ++j) sum += flux[j];
+    d[i] = std::max(Real(0), flux[i] - sum / Real(b - a + 1));
+  }
+  std::vector<Real> sorted = d;
+  const size_t k99 = size_t(0.99 * Real(n - 1));
+  std::nth_element(sorted.begin(), sorted.begin() + k99, sorted.end());
+  const Real threshold = kOnsetRel * sorted[k99];
+  if (!(threshold > 0)) return o;
+  const long gap = std::max(1L, long(kOnsetMinGapSec * rate));
+  for (long i = 1; i + 1 < n; ++i) {
+    if (d[i] < threshold) continue;
+    bool peak = true;
+    for (long j = std::max(0L, i - gap); j <= std::min(n - 1, i + gap) && peak; ++j)
+      if (d[j] > d[i] || (d[j] == d[i] && j < i)) peak = false;
+    if (!peak) continue;
+    Real offset = 0;
+    const Real denom = d[i - 1] - 2 * d[i] + d[i + 1];
+    if (denom < 0) offset = std::clamp((d[i - 1] - d[i + 1]) / (2 * denom), Real(-0.5), Real(0.5));
+    // flux[i] compares frame i with frame i-1: the onset lies between their
+    // centres, half a hop before frame i's centre.
+    o.times.push_back(((Real(i) + offset - 0.5) * hop + frameSize / 2) / sr);
+    o.strengths.push_back(d[i]);
+  }
+  return o;
+}
+
+// Microtiming: note onsets placed on the bar grid.
+//  - Bars: groups of B beat ticks, B the whole number of beats closest to the
+//    rhythm's bar (1 when it is not close to one: then beats are the cycle).
+//    The group start is the tick phase with the strongest onsets. Bars with a
+//    beat interval more than kMicroMaxIntervalDev from the typical one (the
+//    beat tracker switching note values) are left out.
+//  - Each onset gets its position v in the bar, 0..1, linear between the
+//    bar's first and last tick, and the nearest slot of a grid of B x s
+//    points, s = 2, 3 or 4 per beat, whichever the onsets fit best.
+//  - Per slot (used in at least kMicroMinSlotShare of the bars): the mean
+//    offset from the even grid and the spread from bar to bar (median
+//    absolute deviation), both in beats.
+//  - withinBarPct: the slots' mean offsets relative to the first slot's (or
+//    to their median when the first slot is not used), which removes the
+//    tracker's latency, as the onset-weighted mean absolute value, in % of a
+//    beat: how unevenly the bar is played. acrossBarsPct: the onset-weighted
+//    mean of the spreads, in % of a beat: how much the timing varies from
+//    bar to bar. profile: the slots' mean positions in the bar.
+//  - npvi: normalized pairwise variability index of successive inter-onset
+//    intervals up to two beats long.
+constexpr Real kMicroMaxIntervalDev = 0.2, kMicroMinSlotShare = 0.25, kMicroFinerGain = 0.2;
+constexpr int kMicroMinBars = 8;
+
+std::optional<Rhythm::Microtiming> measureMicrotiming(const std::vector<Real>& audio, Real sr,
+                                                     const std::vector<Real>& ticks, const Rhythm& r) {
+  if (ticks.size() < 2 * kMicroMinBars) return std::nullopt;
+  std::vector<Real> ibi;
+  for (size_t i = 1; i < ticks.size(); ++i) ibi.push_back(ticks[i] - ticks[i - 1]);
+  const Real beat = median(ibi);
+  if (!(beat > 0)) return std::nullopt;
+  const Real ratio = r.barSec / beat;
+  int B = int(std::lround(ratio));
+  if (B < 1 || B > 12 || std::abs(ratio - B) > 0.15 * B) B = 1;
+
+  const Onsets on = measureOnsets(audio, sr);
+  if (on.times.size() < size_t(4 * kMicroMinBars)) return std::nullopt;
+
+  // Phase: the tick offset whose ticks carry the strongest onsets.
+  const auto strengthNear = [&](Real t) {
+    const auto it = std::lower_bound(on.times.begin(), on.times.end(), t - 0.05);
+    Real best = 0;
+    for (auto j = it; j != on.times.end() && *j <= t + 0.05; ++j)
+      best = std::max(best, on.strengths[size_t(j - on.times.begin())]);
+    return best;
+  };
+  int phase = 0;
+  if (B > 1) {
+    std::vector<Real> sum(B, 0);
+    for (size_t i = 0; i < ticks.size(); ++i) sum[i % B] += strengthNear(ticks[i]);
+    phase = int(std::max_element(sum.begin(), sum.end()) - sum.begin());
+  }
+
+  // Positions in the bar of the onsets in usable bars.
+  std::vector<Real> pos;
+  std::vector<int> barOf;
+  int bars = 0;
+  for (size_t b = size_t(phase); b + B < ticks.size(); b += size_t(B)) {
+    bool ok = true;
+    for (int k = 0; k < B && ok; ++k)
+      ok = std::abs(ibi[b + k] / beat - 1) <= kMicroMaxIntervalDev;
+    if (!ok) continue;
+    const Real t0 = ticks[b], t1 = ticks[b + B];
+    const auto first = std::lower_bound(on.times.begin(), on.times.end(), t0 - 0.5 * (t1 - t0) / (2 * B));
+    for (auto j = first; j != on.times.end(); ++j) {
+      Real v = (*j - t0) / (t1 - t0);
+      if (v >= 1 - 0.5 / (2 * B)) break;  // the next bar's first slot
+      pos.push_back(v);
+      barOf.push_back(bars);
+    }
+    ++bars;
+  }
+  if (bars < kMicroMinBars || pos.size() < size_t(2 * bars)) return std::nullopt;
+
+  // Grid: s per beat with the smallest mean distance to the nearest slot,
+  // in slots (0.25 for random onsets); a finer grid only when at least
+  // kMicroFinerGain better.
+  int s = 2;
+  Real bestDev = 1;
+  for (int c : {2, 3, 4}) {
+    Real m = 0;
+    for (Real v : pos) m += std::abs(v * B * c - std::round(v * B * c));
+    m /= Real(pos.size());
+    if (m < bestDev * (1 - kMicroFinerGain)) { bestDev = m; s = c; }
+  }
+  const int N = B * s;
+
+  // Per slot: offsets (in beats) of the onsets assigned to it, one per bar
+  // (the strongest is not known here; the first is taken).
+  std::vector<std::vector<Real>> offsets(N);
+  std::vector<int> lastBar(N, -1);
+  for (size_t i = 0; i < pos.size(); ++i) {
+    const long k = std::lround(pos[i] * N);
+    const int slot = int(((k % N) + N) % N);
+    if (lastBar[slot] == barOf[i]) continue;
+    lastBar[slot] = barOf[i];
+    Real d = pos[i] * N - Real(k);  // in slots
+    offsets[slot].push_back(d / s);  // in beats
+  }
+  struct Slot { int index; Real mean, spread; size_t count; };
+  std::vector<Slot> used;
+  for (int k = 0; k < N; ++k) {
+    if (offsets[k].size() < size_t(std::ceil(kMicroMinSlotShare * bars))) continue;
+    const Real m = median(offsets[k]);
+    std::vector<Real> dev;
+    for (Real d : offsets[k]) dev.push_back(std::abs(d - m));
+    used.push_back({k, m, median(dev), offsets[k].size()});
+  }
+  if (used.size() < 2) return std::nullopt;
+  // Reference: the bar's first slot when it is used (onsets on the downbeat
+  // tick measure the tracker's latency), else the median slot offset.
+  Real common;
+  if (used.front().index == 0) {
+    common = used.front().mean;
+  } else {
+    std::vector<Real> means;
+    for (const auto& u : used) for (size_t c = 0; c < u.count; ++c) means.push_back(u.mean);
+    common = median(means);
+  }
+  Real within = 0, across = 0, total = 0;
+  for (const auto& u : used) {
+    within += std::abs(u.mean - common) * Real(u.count);
+    across += u.spread * Real(u.count);
+    total += Real(u.count);
+  }
+
+  Rhythm::Microtiming m;
+  m.beatsPerBar = B;
+  m.perBeat = s;
+  m.bars = bars;
+  m.withinBarPct = std::round(within / total * 100 * 10) / 10;
+  m.acrossBarsPct = std::round(across / total * 100 * 10) / 10;
+  for (const auto& u : used) {
+    Real v = (Real(u.index) / s + u.mean - common) / B;
+    v -= std::floor(v + 0.0005);  // keep the bar's first slot at 0, not 0.999
+    m.profile.push_back(std::round(v * 1000) / 1000);
+  }
+  std::sort(m.profile.begin(), m.profile.end());
+
+  // nPVI over successive inter-onset intervals up to two beats.
+  Real sum = 0;
+  size_t pairs = 0;
+  for (size_t i = 2; i < on.times.size(); ++i) {
+    const Real a = on.times[i - 1] - on.times[i - 2], b = on.times[i] - on.times[i - 1];
+    if (a > 2 * beat || b > 2 * beat) continue;
+    sum += std::abs(a - b) / ((a + b) / 2);
+    ++pairs;
+  }
+  if (pairs == 0) return std::nullopt;
+  m.npvi = std::round(100 * sum / Real(pairs) * 10) / 10;
+  return m;
+}
+
 Features analyze(const std::string& file, const Options& opt) {
   Features f;
   const Real sr = opt.sampleRate;
@@ -1182,7 +1405,10 @@ Features analyze(const std::string& file, const Options& opt) {
 
   // Pulse, bar, accents and tempo curve.
   if (!silent) f.rhythm = measureRhythm(audio, sr);
-  if (f.rhythm) f.rhythm->tempoStability.jitterPct = beatJitter(f.ticks);
+  if (f.rhythm) {
+    f.rhythm->tempoStability.jitterPct = beatJitter(f.ticks);
+    f.rhythm->microtiming = measureMicrotiming(audio, sr, f.ticks, *f.rhythm);
+  }
 
   // Silence at start and end.
   f.silenceThresholdDb = opt.silenceAuto ? autoSilenceThreshold(f, opt.silenceThresholdDb)
@@ -1237,7 +1463,17 @@ void printRhythm(std::ostream& o, const std::optional<Rhythm>& r, const std::str
   o << "],\n" << in2 << "\"tempoStability\": ";
   const auto& t = r->tempoStability;
   o << "{\"jitterPct\": " << jsonNum(t.jitterPct) << ", \"driftPct\": " << jsonNum(t.driftPct)
-    << ", \"slopePctPerMin\": " << jsonNum(t.slopePctPerMin) << "}";
+    << ", \"slopePctPerMin\": " << jsonNum(t.slopePctPerMin) << "},\n"
+    << in2 << "\"microtiming\": ";
+  if (const auto& m = r->microtiming) {
+    o << "{\"npvi\": " << jsonNum(m->npvi) << ", \"withinBarPct\": " << jsonNum(m->withinBarPct)
+      << ", \"acrossBarsPct\": " << jsonNum(m->acrossBarsPct) << ", \"beatsPerBar\": " << m->beatsPerBar
+      << ", \"perBeat\": " << m->perBeat << ", \"bars\": " << m->bars << ", \"profile\": ";
+    printNumbers(o, m->profile);
+    o << "}";
+  } else {
+    o << "null";
+  }
   o << "\n" << in << "}";
 }
 

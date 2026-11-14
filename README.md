@@ -244,7 +244,9 @@ silence, files shorter than 10 s, or when no cycle can be measured.
   "alternatives": [{"pulses": 6, "sec": 3.161, "score": 0.23}, {"pulses": 2, "sec": 1.054, "score": 0.11}],
   "accents": {"energy": [1, 0.57, 0.41], "bass": [0.73, 1, 0.87]},
   "tempoCurve": [{"startSec": 0.0, "barsPerMin": 38}, {"startSec": 30.0, "barsPerMin": 37.9}],
-  "tempoStability": {"jitterPct": 1.22, "driftPct": 2.92, "slopePctPerMin": 0.38}
+  "tempoStability": {"jitterPct": 1.22, "driftPct": 2.92, "slopePctPerMin": 0.38},
+  "microtiming": {"npvi": 32.7, "withinBarPct": 5.6, "acrossBarsPct": 2.7, "beatsPerBar": 2,
+                  "perBeat": 2, "bars": 225, "profile": [0, 0.207, 0.507, 0.688]}
 }
 ```
 
@@ -283,6 +285,34 @@ silence, files shorter than 10 s, or when no cycle can be measured.
     without a clear bar there is no tempo to follow (rubato, free singing).
   On 140 tracks of a folk dance library, the median jitter was 1.2 %, drift
   2.9 % (90th percentile 12 %) and slope 0 %/min.
+- `microtiming`: how the notes sit on the bar, or `null` when there are fewer
+  than 8 usable bars or too few onsets. Note onsets (spectral flux, 5.8 ms
+  hop) are placed in bars of `beatsPerBar` beat ticks (the whole number of
+  beats closest to the rhythm's bar, 1 when there is none; the bar starts on
+  the tick phase with the strongest onsets). Bars in which the beat tracker
+  switches note values are left out; `bars` is the number used. Each beat is
+  divided into `perBeat` = 2, 3 or 4 grid slots, whichever the onsets fit
+  best.
+  - `withinBarPct`: how unevenly the bar is played: the mean offset of each
+    slot's notes from the even grid, relative to the bar's first slot,
+    averaged over the notes, in % of a beat. 60:40 eighth notes read 3.4,
+    straight ones 0.
+  - `acrossBarsPct`: how much the timing varies from bar to bar: per slot the
+    median absolute deviation of its notes' offsets, averaged over the notes,
+    in % of a beat. A band that repeats an uneven pattern exactly reads low;
+    straight clicks read 0.4.
+  - `profile`: the slots' mean positions in the bar (fraction of the bar,
+    first slot at 0): the lilt itself, e.g. `[0, 0.207, 0.507, 0.688]` for a
+    bourrée whose first eighth of each beat is long.
+  - `npvi`: normalized pairwise variability index of successive inter-onset
+    intervals up to two beats, `100 / (m − 1) · Σ |d_k − d_{k+1}| / ((d_k + d_{k+1}) / 2)`:
+    0 for equal note lengths, higher the more neighbouring notes differ
+    (intended variety and timing errors together).
+  On 54 dance-tagged tracks, mazurkas varied most from bar to bar (8–10 %),
+  straight polkas and an dros least (1–4 %); some bourrées and valses showed a
+  clear lilt (`withinBarPct` 4–6). Legato instruments (accordion, voice) give
+  fewer onsets, and `beatsPerBar` follows the rhythm's bar, which is sometimes
+  two bars.
 
 On the labelled tunes in `scripts/eval/folk_labels.json`, the bar is right for
 6 of 7 (three hanter dros, a valse à 11, a valse and two mazurkas); an a

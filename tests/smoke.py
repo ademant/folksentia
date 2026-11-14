@@ -157,6 +157,39 @@ def main():
     check(st is not None and st["driftPct"] is not None and 12 < st["driftPct"] < 25
           and 15 < st["slopePctPerMin"] < 30, f"accelerating clicks: drift and positive slope ({st})")
 
+    # Microtiming: eighth notes at 120 BPM, a bass hit on each bar. Straight,
+    # lilted (60:40), and straight with random timing errors of up to 5 % of a
+    # beat on the off-beats.
+    def eighths(second, jitter=0.0, rate=22050, seconds=60):
+        rng, out, beat = random.Random(2), [0.0] * ((seconds + 1) * rate), 0.5
+        for b in range(int(seconds / beat)):
+            for pos, amp in ((0, 0.5), (second + rng.uniform(-jitter, jitter), 0.3)):
+                start = int((b + pos) * beat * rate)
+                for k in range(int(0.03 * rate)):
+                    out[start + k] += amp * math.sin(2 * math.pi * 1000 * k / rate) * math.exp(-k / (0.008 * rate))
+            if b % 4 == 0:
+                start = int(b * beat * rate)
+                for k in range(int(0.15 * rate)):
+                    out[start + k] += 0.4 * math.sin(2 * math.pi * 60 * k / rate) * math.exp(-k / (0.05 * rate))
+        return out
+    micro = {}
+    for name, second, jitter in (("straight", 0.5, 0), ("lilted", 0.6, 0), ("jittered", 0.5, 0.05)):
+        write_wav(j(name + ".wav"), 22050, 1, eighths(second, jitter))
+        rc, out, _, _ = run(j(name + ".wav"))
+        micro[name] = out["rhythm"] and out["rhythm"]["microtiming"]
+    m = micro["straight"]
+    check(m is not None and m["perBeat"] == 2 and m["withinBarPct"] < 1 and m["acrossBarsPct"] < 1.5
+          and m["npvi"] < 10, f"straight eighths: even and steady ({m})")
+    m = micro["lilted"]
+    check(m is not None and 3 < m["withinBarPct"] < 7 and m["acrossBarsPct"] < 1.5
+          and any(near(v * m["beatsPerBar"] % 1, 0.6, 0.03) for v in m["profile"]),
+          f"lilted eighths (60:40): uneven but steady, off-beat at 0.6 ({m})")
+    m = micro["jittered"]
+    # +-5 % on every second note: median absolute deviation 2.5 % there, 1.25 %
+    # averaged over all notes.
+    check(m is not None and m["acrossBarsPct"] > 1 and m["acrossBarsPct"] > 3 * micro["straight"]["acrossBarsPct"],
+          f"jittered eighths: varies from bar to bar ({m})")
+
     # Tempo must not depend on the analysis rate.
     rc, out, _, _ = run("-r", "16000", j("clicks.wav"))
     check(rc == 0 and near(out["bpm"], 120, 2), f"clicks -r 16000: bpm ~120 (got {out and out['bpm']})")
