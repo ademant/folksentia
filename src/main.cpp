@@ -92,6 +92,10 @@ struct Features {
   std::optional<Real> tuningSpreadCents;
   Real replayGain = 0, loudness = 0, dynamicComplexity = 0;
 
+  // Median spectral complexity (peaks per frame) and spectral entropy (bits)
+  // over the non-silent frames; unset for digital silence.
+  std::optional<Real> spectralComplexity, spectralEntropy;
+
   // Silence at start and end; unset when the file has no non-silent frame.
   std::optional<Real> leadMs, tailMs;
 
@@ -275,6 +279,13 @@ void measureSilence(const std::vector<Real>& audio, Real sr, Real thresholdDb, F
   f.leadMs = Real(span->first) / sr * 1000.;
   f.tailMs = Real(audio.size() - span->second) / sr * 1000.;
 }
+
+// How many frequencies the sound uses: per frame, the number of spectral peaks
+// (SpectralComplexity) and the Shannon entropy of the magnitude spectrum
+// (Entropy, bits); the medians over the non-silent frames. Frame settings as
+// in Essentia's MusicExtractor, so the values compare with its lowlevel
+// spectral_complexity and spectral_entropy.
+void measureSpectrum(const std::vector<Real>& audio, Real sr, Features& f);
 
 // Spread of the segments' tuning around `overall`, in cents: 10th to 90th
 // percentile. Tuning repeats every semitone, so each segment's deviation is
@@ -657,6 +668,45 @@ Real median(std::vector<Real> v) {
   return v.size() % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
 }
 
+void measureSpectrum(const std::vector<Real>& audio, Real sr, Features& f) {
+  const int frameSize = 2048, hopSize = 1024;
+  auto cutter = make("FrameCutter", "frameSize", frameSize, "hopSize", hopSize,
+                     "startFromZero", true);
+  auto window = make("Windowing", "type", "blackmanharris62");
+  auto spectrum = make("Spectrum", "size", frameSize);
+  auto complexity = make("SpectralComplexity", "sampleRate", sr);
+  auto entropy = make("Entropy");
+
+  std::vector<Real> frame, windowed, spec;
+  Real c = 0, e = 0;
+  cutter->input("signal").set(audio);
+  cutter->output("frame").set(frame);
+  window->input("frame").set(frame);
+  window->output("frame").set(windowed);
+  spectrum->input("frame").set(windowed);
+  spectrum->output("spectrum").set(spec);
+  complexity->input("spectrum").set(spec);
+  complexity->output("spectralComplexity").set(c);
+  entropy->input("array").set(spec);
+  entropy->output("entropy").set(e);
+
+  std::vector<Real> cs, es;
+  for (;;) {
+    cutter->compute();
+    if (frame.empty()) break;
+    if (isSilent(frame)) continue;
+    window->compute();
+    spectrum->compute();
+    complexity->compute();
+    entropy->compute();
+    cs.push_back(c);
+    es.push_back(e);
+  }
+  if (cs.empty()) return;
+  f.spectralComplexity = median(cs);
+  f.spectralEntropy = median(es);
+}
+
 // Rotation r of each profile (roll left by r) that best matches the running
 // average, starting from the first profile; two passes.
 std::vector<int> alignRotations(const std::vector<std::vector<Real>>& profiles) {
@@ -958,6 +1008,9 @@ Features analyze(const std::string& file, const Options& opt) {
     dc->compute();
   }
 
+  // How many frequencies are used.
+  if (!silent) measureSpectrum(audio, sr, f);
+
   // Pulse, bar, accents and tempo curve.
   if (!silent) f.rhythm = measureRhythm(audio, sr);
 
@@ -1032,6 +1085,8 @@ void printFile(std::ostream& o, const std::string& file, const Features& f,
     << in << "\"replay_gain_db\": " << jsonNum(f.replayGain) << ",\n"
     << in << "\"loudness_db\": " << jsonNum(f.loudness) << ",\n"
     << in << "\"dynamic_complexity\": " << jsonNum(f.dynamicComplexity) << ",\n"
+    << in << "\"spectral_complexity\": " << jsonNum(f.spectralComplexity) << ",\n"
+    << in << "\"spectral_entropy\": " << jsonNum(f.spectralEntropy) << ",\n"
     << in << "\"silence\": {\n"
     << in2 << "\"schema\": " << kSchema << ",\n"
     << in2 << "\"thresholdDb\": " << jsonNum(opt.silenceThresholdDb) << ",\n"
