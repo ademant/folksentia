@@ -309,9 +309,12 @@ Every job gets one line:
 
 `toolVersion` is the version from `folksentia --version`. The run can be
 stopped and started again with the same arguments: jobs already in the result
-file are skipped, and a half-written last line is removed. Exit status: 0 when
-every job has a line without an error, 1 when some analysis failed, 2 for bad
-usage or an unreadable job list.
+file are skipped, and a half-written last line is removed. Ctrl-C, SIGTERM and
+SIGHUP stop the running folksentia processes too (they run in their own
+sessions); a run started in the background ignores Ctrl-C, so stop it with
+`kill`. Exit status: 0 when every job has a line without an error, 1 when some
+analysis failed, 2 for bad usage or an unreadable job list, 128 + the signal
+number when stopped.
 
 ## License
 
