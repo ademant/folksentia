@@ -872,17 +872,23 @@ Features analyze(const std::string& file, const Options& opt) {
   // whole file and per kTuningSegmentSec segment for its spread.
   if (!silent) {
     const int frameSize = 4096, hopSize = 2048;
+    // SpectralPeaks reports the first bin of its range as a peak, at the
+    // bin's own frequency, whenever the spectrum still rises there (bass).
+    // That bin is a fixed number of cents off (434.19 Hz at 44.1 kHz) and
+    // would win the histogram, so peaks within two bins of either end of the
+    // range are dropped.
+    const Real kPeakMinHz = 40, kPeakMaxHz = 5000, edge = 2 * sr / frameSize;
     auto cutter = make("FrameCutter", "frameSize", frameSize, "hopSize", hopSize,
                        "startFromZero", true);
     auto window = make("Windowing", "type", "blackmanharris62");
     auto spectrum = make("Spectrum", "size", frameSize);
     auto peaks = make("SpectralPeaks", "sampleRate", sr, "maxPeaks", 60,
-                      "minFrequency", 40.0, "maxFrequency", 5000.0,
+                      "minFrequency", kPeakMinHz, "maxFrequency", kPeakMaxHz,
                       "orderBy", "magnitude", "magnitudeThreshold", 1e-5);
     auto tuning = make("TuningFrequency");
     auto segmentTuning = make("TuningFrequency");
 
-    std::vector<Real> frame, windowed, spec, freqs, mags;
+    std::vector<Real> frame, windowed, spec, allFreqs, allMags, freqs, mags;
     cutter->input("signal").set(audio);
     cutter->output("frame").set(frame);
     window->input("frame").set(frame);
@@ -890,8 +896,8 @@ Features analyze(const std::string& file, const Options& opt) {
     spectrum->input("frame").set(windowed);
     spectrum->output("spectrum").set(spec);
     peaks->input("spectrum").set(spec);
-    peaks->output("frequencies").set(freqs);
-    peaks->output("magnitudes").set(mags);
+    peaks->output("frequencies").set(allFreqs);
+    peaks->output("magnitudes").set(allMags);
     Real frequency = 0, cents = 0, segmentFrequency = 0, segmentCents = 0;
     for (auto* t : {tuning.get(), segmentTuning.get()}) {
       t->input("frequencies").set(freqs);
@@ -919,6 +925,13 @@ Features analyze(const std::string& file, const Options& opt) {
       window->compute();
       spectrum->compute();
       peaks->compute();
+      freqs.clear();
+      mags.clear();
+      for (size_t i = 0; i < allFreqs.size(); ++i) {
+        if (allFreqs[i] < kPeakMinHz + edge || allFreqs[i] > kPeakMaxHz - edge) continue;
+        freqs.push_back(allFreqs[i]);
+        mags.push_back(allMags[i]);
+      }
       tuning->compute();  // accumulates; output is the running estimate
       segmentTuning->compute();
       ++measured;

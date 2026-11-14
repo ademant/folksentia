@@ -207,6 +207,14 @@ def main():
     check(drift["tuning_spread_cents"] is not None and drift["tuning_spread_cents"] > 30,
           f"tone rising 47 cents: large spread ({drift['tuning_spread_cents']})")
 
+    # A loud bass below the peak range must not pull the tuning to its edge
+    # bin (434.19 Hz at 44.1 kHz).
+    write_wav(j("bass.wav"), 44100, 1,
+              [0.6 * math.sin(2 * math.pi * 30 * k / 44100) + 0.05 * (math.sin(2 * math.pi * 440 * k / 44100)
+               + 0.5 * math.sin(4 * math.pi * 440 * k / 44100)) for k in range(40 * 44100)])
+    rc, bass, _, _ = run(j("bass.wav"))
+    check(near(bass["tuning_frequency"], 440, 1), f"tone over a loud 30 Hz bass: 440 Hz ({bass['tuning_frequency']})")
+
     # True peak: a burst at fs/4, sampled 45° off its crests, has samples at
     # 0.354 (-9 dB) but crests at 0.5, so its true peak is -6 dBTP. Placed at
     # the start, the middle and the very end of the file.
