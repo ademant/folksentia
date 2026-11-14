@@ -64,7 +64,7 @@ builddir/folksentia --fingerprint *.opus > fingerprints.json
 | `-w`, `--waveform[=BINS]` | include `waveform` with BINS peaks (default 150) |
 | `-p`, `--fingerprint` | include `fingerprint`, a Chromaprint fingerprint of the first 120 s |
 | `-a`, `--array` | print a JSON array even when only one file is given |
-| `-s`, `--silence-threshold DB` | frame power in dBFS below which a frame counts as silence, −150 to 0 (default −100) |
+| `-s`, `--silence-threshold DB\|auto` | frame power in dBFS below which a frame counts as silence, −150 to 0 (default −100); `auto` sets it from the track's noise floor and loudness (see below) |
 | `-f`, `--fast` | use the faster `degara` beat tracker instead of `multifeature` (`bpm_confidence` is then always 0) |
 | `-V`, `--version` | print the version, build date, Essentia version and whether Chromaprint is available, then exit |
 | `-r`, `--sample-rate HZ` | analysis sample rate: 8000, 16000, 32000, 44100 or 48000 (default 44100); tempo and beats are always analysed at 44100 Hz |
@@ -175,13 +175,24 @@ near 0. To measure the quiet before a tune starts, pass a threshold above the
 noise floor, e.g. `--silence-threshold -50`. A full-scale sine wave has a mean
 power of −3 dB.
 
+`--silence-threshold auto` sets the threshold per track: 6 dB above
+`noiseFloorLufs`, or 40 LU below `integratedLufs` if that is higher, but always
+at least 20 LU below `integratedLufs`, so quiet music is not cut. Loudness is
+K-weighted and sums both channels while the silence frames are measured on the
+mono mix, so the threshold is converted with a fixed offset (−2.3 dB); it is an
+approximation. `thresholdDb` reports the threshold used. Digital silence has no
+loudness; the threshold then stays at −100 dB.
+
 `loudness` (`schema` 1):
 
 - `integratedLufs`: EBU R128 integrated loudness (LUFS), from Essentia's `LoudnessEBUR128`.
 - `truePeakDbtp`: true peak in dBTP, the highest peak of either channel, measured as ITU-R BS.1770-4 specifies: 4x oversampling by a polyphase FIR interpolator (49-tap Hann-windowed sinc, as in libebur128).
+- `lraLu`: loudness range (EBU Tech 3342) in LU, from Essentia's `LoudnessEBUR128`: the spread between the 10th and 95th percentile of the 3 s short-term loudness, ignoring passages more than 20 LU below its mean. Roughly 3–6 LU for a compressed master, 10–15 LU for a lively acoustic recording, 20 LU and more for classical music or field recordings.
+- `plrDb`: peak-to-loudness ratio, `truePeakDbtp − integratedLufs`; small for a heavily limited master.
+- `noiseFloorLufs`: the 2nd percentile of the momentary loudness (400 ms blocks every 100 ms), digital silence left out: the level of hiss or room tone, or of the quietest passages when the recording has no pauses.
 
-The loudness and true peak are measured at the file's own sample rate. A mono
-file is measured as dual mono (the same signal on both channels). Both values are
+The loudness values are measured at the file's own sample rate. A mono
+file is measured as dual mono (the same signal on both channels). All values are
 `null` when the value is undefined, for example for digital silence.
 
 `waveform` (`schema` 1, `--waveform` only):
@@ -232,7 +243,10 @@ silence, files shorter than 10 s, or when no cycle can be measured.
   "barScore": 0.34,
   "alternatives": [{"pulses": 6, "sec": 3.161, "score": 0.23}, {"pulses": 2, "sec": 1.054, "score": 0.11}],
   "accents": {"energy": [1, 0.57, 0.41], "bass": [0.73, 1, 0.87]},
-  "tempoCurve": [{"startSec": 0.0, "barsPerMin": 38}, {"startSec": 30.0, "barsPerMin": 37.9}]
+  "tempoCurve": [{"startSec": 0.0, "barsPerMin": 38}, {"startSec": 30.0, "barsPerMin": 37.9}],
+  "tempoStability": {"jitterPct": 1.22, "driftPct": 2.92, "slopePctPerMin": 0.38},
+  "microtiming": {"npvi": 32.7, "withinBarPct": 5.6, "acrossBarsPct": 2.7, "beatsPerBar": 2,
+                  "perBeat": 2, "bars": 225, "profile": [0, 0.207, 0.507, 0.688]}
 }
 ```
 
@@ -252,7 +266,53 @@ silence, files shorter than 10 s, or when no cycle can be measured.
   (`[1, 0.57, 0.41]`), two mazurkas almost even beats (`[1, 0.86, 0.91]`,
   `[1, 0.85, 0.87]`).
 - `tempoCurve`: bars per minute per 30-second window (one point for shorter
-  files), which shows accelerandos.
+  files), which shows accelerandos. Each window's bar is searched within
+  ±5 % of the whole track's, so larger changes show in `tempoStability`.
+- `tempoStability`: how steady the tempo is; each value is `null` when there
+  is too little to measure.
+  - `jitterPct`: beat-to-beat irregularity: per 8 beat intervals the mean
+    absolute deviation from their median, in % of it; the median over the
+    track. The beat times are quantised to 11.6 ms, so about 0.3–1 % is the
+    floor (steady clicks read 0.3). `null` with fewer than 20 beat intervals.
+  - `driftPct`: how far the bar tempo moves over the track, the 10th to 90th
+    percentile range in % of the median. The tempo is measured in windows of
+    4 bars (at least 8 s), and the path through the windows is chosen to
+    follow lasting changes but not single noisy windows; changes between 0.8
+    and 1.25 times the track's tempo are seen.
+  - `slopePctPerMin`: the trend of that tempo, in % per minute; positive for
+    an accelerando (clicks from 100 to 125 BPM in a minute read 22).
+  - `driftPct` and `slopePctPerMin` are `null` when `barScore` is below 0.1:
+    without a clear bar there is no tempo to follow (rubato, free singing).
+  On 140 tracks of a folk dance library, the median jitter was 1.2 %, drift
+  2.9 % (90th percentile 12 %) and slope 0 %/min.
+- `microtiming`: how the notes sit on the bar, or `null` when there are fewer
+  than 8 usable bars or too few onsets. Note onsets (spectral flux, 5.8 ms
+  hop) are placed in bars of `beatsPerBar` beat ticks (the whole number of
+  beats closest to the rhythm's bar, 1 when there is none; the bar starts on
+  the tick phase with the strongest onsets). Bars in which the beat tracker
+  switches note values are left out; `bars` is the number used. Each beat is
+  divided into `perBeat` = 2, 3 or 4 grid slots, whichever the onsets fit
+  best.
+  - `withinBarPct`: how unevenly the bar is played: the mean offset of each
+    slot's notes from the even grid, relative to the bar's first slot,
+    averaged over the notes, in % of a beat. 60:40 eighth notes read 3.4,
+    straight ones 0.
+  - `acrossBarsPct`: how much the timing varies from bar to bar: per slot the
+    median absolute deviation of its notes' offsets, averaged over the notes,
+    in % of a beat. A band that repeats an uneven pattern exactly reads low;
+    straight clicks read 0.4.
+  - `profile`: the slots' mean positions in the bar (fraction of the bar,
+    first slot at 0): the lilt itself, e.g. `[0, 0.207, 0.507, 0.688]` for a
+    bourrée whose first eighth of each beat is long.
+  - `npvi`: normalized pairwise variability index of successive inter-onset
+    intervals up to two beats, `100 / (m − 1) · Σ |d_k − d_{k+1}| / ((d_k + d_{k+1}) / 2)`:
+    0 for equal note lengths, higher the more neighbouring notes differ
+    (intended variety and timing errors together).
+  On 54 dance-tagged tracks, mazurkas varied most from bar to bar (8–10 %),
+  straight polkas and an dros least (1–4 %); some bourrées and valses showed a
+  clear lilt (`withinBarPct` 4–6). Legato instruments (accordion, voice) give
+  fewer onsets, and `beatsPerBar` follows the rhythm's bar, which is sometimes
+  two bars.
 
 On the labelled tunes in `scripts/eval/folk_labels.json`, the bar is right for
 6 of 7 (three hanter dros, a valse à 11, a valse and two mazurkas); an a
