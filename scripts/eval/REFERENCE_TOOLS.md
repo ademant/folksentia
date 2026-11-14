@@ -51,8 +51,10 @@ one copy to ffmpeg's own analysers (`ebur128`, `silencedetect`, `astats`) and
 one copy per reference tool to a separate ffmpeg output. Each output has the
 format that tool expects (raw float for `bpm`, raw s16 for `fpcalc`, WAV for
 `aubio` and `soundstretch`) and is written to a pipe (`pipe:N`) that is the
-tool's stdin. All tools run in parallel. Tools that are not installed are
-listed under `skipped`.
+tool's stdin. All tools run in parallel. The exception is `soundstretch`: it
+rewinds its input after the BPM pass and asserts on a pipe, so ffmpeg writes
+its WAV to a temporary file and `soundstretch` runs on it once ffmpeg is done.
+Tools that are not installed are listed under `skipped`.
 
 This is better than `tee`: with `tee` every consumer gets the same byte
 stream, but the tools need different formats, and one consumer that stops
@@ -112,7 +114,7 @@ one of them.
 ```sh
 aubio tempo tune.flac
 sox tune.flac -t raw -r 44100 -e float -b 32 -c 1 - | bpm
-soundstretch tune.wav -bpm        # WAV input only
+soundstretch tune.wav -bpm        # a WAV file; not stdin (it rewinds its input)
 ```
 
 `aubio` uses its own onset and autocorrelation method, so it is a good

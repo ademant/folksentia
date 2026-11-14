@@ -5,7 +5,8 @@ ffmpeg decodes the file a single time. Inside ffmpeg an `asplit` filter feeds
 one branch to its own analysers (ebur128, silencedetect, astats) and every
 other branch to a separate output in the format one reference tool needs. Each
 output is written to a pipe (`pipe:N`) whose read end is that tool's stdin, so
-all tools run in parallel on the same decoded audio.
+all tools run in parallel on the same decoded audio. A tool that must seek in
+its input (soundstretch) gets a temporary file instead and runs afterwards.
 
 Prints one JSON object per file, with field names matching folksentia where
 there is a counterpart. Tools that are not installed are skipped and listed
@@ -22,6 +23,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from typing import Callable
 
@@ -35,6 +37,9 @@ class Tool:
     argv: list[str]                  # reads the stream from stdin
     out_args: list[str]              # ffmpeg output options for this tool's stream
     parse: Callable[[str], dict]
+    # Needs a seekable input: ffmpeg writes a temporary file instead of a
+    # pipe, the tool gets its path in place of "{file}" and runs afterwards.
+    seekable: bool = False
 
 
 def parse_bpm_tools(out: str) -> dict:
@@ -57,7 +62,11 @@ def parse_aubio_beats(out: str) -> dict:
 
 def parse_soundstretch(out: str) -> dict:
     m = re.search(r"Detected BPM rate\s*([\d.]+)", out)
-    return {"bpm": float(m.group(1))} if m else {}
+    if m:
+        return {"bpm": float(m.group(1))}
+    if "Couldn't detect BPM" in out:
+        return {"bpm": None}  # an answer: no steady tempo found
+    return {}
 
 
 MONO_F32 = ["-ac", "1", "-ar", str(RATE), "-f", "f32le"]
@@ -73,8 +82,10 @@ TOOLS = [
          ["-t", "120", "-ac", "1", "-ar", str(RATE), "-f", "s16le"], parse_fpcalc),
     Tool("aubio-tempo", "aubio", ["aubio", "tempo", "/dev/stdin"], MONO_WAV, parse_aubio_tempo),
     Tool("aubio-beat", "aubio", ["aubio", "beat", "/dev/stdin"], MONO_WAV, parse_aubio_beats),
-    Tool("soundstretch", "soundstretch", ["soundstretch", "stdin", "-bpm"], MONO_WAV,
-         parse_soundstretch),
+    # soundstretch rewinds its input after the BPM pass (WavInFile::rewind),
+    # which asserts on a pipe.
+    Tool("soundstretch", "soundstretch", ["soundstretch", "{file}", "-bpm"], MONO_WAV,
+         parse_soundstretch, seekable=True),
 ]
 
 
@@ -126,21 +137,35 @@ def analyse(path: str, silence_db: float) -> dict:
     cmd = ["ffmpeg", "-nostdin", "-nostats", "-hide_banner", "-i", path,
            "-filter_complex", graph, "-map", "[ana_out]", "-f", "null", "-"]
 
-    procs, write_fds = [], []
-    for i, t in enumerate(tools):
-        r_fd, w_fd = os.pipe()
-        p = subprocess.Popen(t.argv, stdin=r_fd, stdout=subprocess.PIPE,
-                             stderr=subprocess.STDOUT, text=True)
-        os.close(r_fd)
-        procs.append(p)
-        write_fds.append(w_fd)
-        cmd += ["-map", f"[t{i}]", *t.out_args, "-y", f"pipe:{w_fd}"]
+    with tempfile.TemporaryDirectory(prefix="reference-") as tmp:
+        procs, write_fds, later = [], [], []
+        for i, t in enumerate(tools):
+            if t.seekable:
+                file = os.path.join(tmp, f"{i}.wav")
+                later.append((i, [file if a == "{file}" else a for a in t.argv]))
+                cmd += ["-map", f"[t{i}]", *t.out_args, "-y", file]
+                procs.append(None)
+                continue
+            r_fd, w_fd = os.pipe()
+            p = subprocess.Popen(t.argv, stdin=r_fd, stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT, text=True)
+            os.close(r_fd)
+            procs.append(p)
+            write_fds.append(w_fd)
+            cmd += ["-map", f"[t{i}]", *t.out_args, "-y", f"pipe:{w_fd}"]
 
-    ff = subprocess.Popen(cmd, stderr=subprocess.PIPE, text=True, pass_fds=write_fds)
-    for fd in write_fds:     # only ffmpeg may hold the write ends, so readers see EOF
-        os.close(fd)
-    log = ff.communicate()[1]
-    outputs = [p.communicate()[0] for p in procs]
+        ff = subprocess.Popen(cmd, stderr=subprocess.PIPE, text=True, pass_fds=write_fds)
+        for fd in write_fds:     # only ffmpeg may hold the write ends, so readers see EOF
+            os.close(fd)
+        log = ff.communicate()[1]
+        outputs = [p.communicate()[0] if p else "" for p in procs]
+        # The file-reading tools, once ffmpeg has written their files.
+        if ff.returncode == 0:
+            started = [(i, subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                            stderr=subprocess.STDOUT, text=True)) for i, argv in later]
+            for i, p in started:
+                outputs[i] = p.communicate()[0]
+                procs[i] = p
 
     if ff.returncode != 0:
         result["error"] = "ffmpeg: " + log.strip().splitlines()[-1]
