@@ -71,7 +71,7 @@ def main():
     check(ok["local"] == {"size": jobs[0]["size"], "mtimeMs": jobs[0]["mtimeMs"]}, "ok: local stamp matches the job")
     check(ok["toolVersion"] == version, f"ok: toolVersion {ok['toolVersion']}")
     r = ok["result"]
-    check(r["schema"] == 1 and r["file"] == "Artist/Album/01 Clicks.wav", "ok: schema 1, file is the job path")
+    check(r["schema"] == 2 and r["file"] == "Artist/Album/01 Clicks.wav", "ok: schema 2, file is the job path")
     check(abs(r["bpm"] - 120) < 2 and r["beats"] and "downbeatIndexes" in r and r["waveform"]["bins"] == 150,
           "ok: options applied (beats, downbeats, waveform 150)")
     check("fingerprint" not in r, "ok: no fingerprint when not requested")

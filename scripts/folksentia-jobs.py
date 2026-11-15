@@ -24,7 +24,8 @@ from pathlib import Path, PurePosixPath
 
 JOBS_FORMAT = "tinysonic-analysis-jobs"
 JOBS_VERSION = 1
-SCHEMA = 1
+SCHEMA = 1  # schema of the job list (tinysonic export)
+RESULT_SCHEMA = 2  # schema of folksentia output, also used for error lines
 
 
 def fail(msg):
@@ -134,7 +135,7 @@ def run_job(job, root, args, binary, version, ignore_mtime, timeout, procs):
         return {"job": job, "local": local, "skipped": "changed"}, "changed"
 
     def error(msg):
-        return {"schema": SCHEMA, "file": job["path"], "error": msg}
+        return {"schema": RESULT_SCHEMA, "file": job["path"], "error": msg}
 
     try:
         p = subprocess.Popen([binary, *args, "--", str(path)], stdout=subprocess.PIPE,
