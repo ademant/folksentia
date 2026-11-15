@@ -87,7 +87,7 @@ def main():
     # Click track: tempo, beats, downbeats, silence, schema.
     rc, out, text, _ = run("--downbeats", "--meter", "4", "--waveform=10", "--onsets", j("clicks.wav"))
     check(rc == 0, "clicks: exit 0")
-    check(isinstance(out, dict) and out["schema"] == 1, "clicks: single object, schema 1")
+    check(isinstance(out, dict) and out["schema"] == 2, "clicks: single object, schema 2")
     check(near(out["bpm"], 120, 2), f"clicks: bpm ~120 (got {out['bpm']})")
     check(near(out["duration"], 21.5, 0.01), f"clicks: duration 21.5 s (got {out['duration']})")
     check(near(out["silence"]["leadMs"], 1000, 10), f"clicks: leadMs ~1000 (got {out['silence']['leadMs']})")
@@ -105,7 +105,7 @@ def main():
         phase = (out["beats"][db[0]] - 1.0) % 2.0
         check(min(phase, 2.0 - phase) < 0.07, f"clicks: downbeats on the bass hits (offset {phase:.3f} s)")
     on = out["onsets"]
-    check(on is not None and on["schema"] == 1 and len(on["timesMs"]) == len(on["strengths"]),
+    check(on is not None and on["schema"] == 2 and len(on["timesMs"]) == len(on["strengths"]),
           "clicks: onsets object")
     if on:
         click_ms = [1000 + 500 * k for k in range(40)]
@@ -117,15 +117,15 @@ def main():
     check(out["waveform"]["bins"] == 10 and max(out["waveform"]["peaks"]) == 255, "clicks: waveform")
     check(out["loudness"]["integratedLufs"] is not None and out["loudness"]["truePeakDbtp"] is not None,
           "clicks: loudness measured")
-    for field in ("key", "scale", "key_strength", "tuning_frequency", "tuning_cents", "tuning_spread_cents"):
+    for field in ("key_pitch", "key_mode", "key_strength", "tuning_frequency", "tuning_cents", "tuning_spread_cents"):
         check(field in out, f"clicks: has {field}")
-    check((out["key"] is None) == (out["key_strength"] < 0.6), "clicks: key null exactly when strength < 0.6")
+    check((out["key_pitch"] is None) == (out["key_strength"] < 0.6), "clicks: key null exactly when strength < 0.6")
 
     # Equal clicks: the onsets give the beat but no bar, so the bar is a whole
     # number of beats.
     rh = out["rhythm"]
     beats_per_bar = rh and rh["barSec"] / 0.5
-    check(rh is not None and rh["schema"] == 1 and near(beats_per_bar, round(beats_per_bar), 0.05)
+    check(rh is not None and rh["schema"] == 2 and near(beats_per_bar, round(beats_per_bar), 0.05)
           and near(rh["barsPerMin"], 60 / rh["barSec"], 0.1),
           f"clicks: rhythm bar is a whole number of beats ({rh and (rh['barPulses'], rh['pulseSec'], rh['barSec'])})")
     check(rh is not None and rh["accents"]["energy"][0] == 1
@@ -227,7 +227,7 @@ def main():
     rc, out, _, _ = run("--beats", "--downbeats", "--onsets", j("silence.wav"))
     check(rc == 0 and out["onsets"] is None, "silence: onsets null")
     check(rc == 0, "silence: exit 0")
-    for field in ("bpm", "bpm_confidence", "key", "scale", "key_strength", "tuning_frequency", "tuning_cents",
+    for field in ("bpm", "bpm_confidence", "key_pitch", "key_mode", "key_strength", "tuning_frequency", "tuning_cents",
                   "tuning_spread_cents", "spectral_complexity", "spectral_entropy"):
         check(out[field] is None, f"silence: {field} is null")
     check(out["silence"]["leadMs"] is None and out["silence"]["tailMs"] is None, "silence: lead/tail null")

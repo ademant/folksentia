@@ -2,7 +2,7 @@
 //
 // Usage: folksentia [options] FILE...
 // Prints one JSON object per file (JSON array if several files).
-// The JSON layout is documented in README.md (schema version 1).
+// The JSON layout is documented in README.md (schema version 2).
 
 #include <essentia/algorithmfactory.h>
 #include <essentia/essentia.h>
@@ -24,6 +24,7 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace essentia;
@@ -32,7 +33,7 @@ using essentia::standard::AlgorithmFactory;
 
 namespace {
 
-constexpr int kSchema = 1;
+constexpr int kSchema = 2;
 
 // Tuning is also measured per segment of this length, for its spread.
 constexpr Real kTuningSegmentSec = 30;
@@ -278,9 +279,28 @@ std::string jsonNum(const std::optional<Real>& v) {
   return v ? jsonNum(*v) : "null";
 }
 
-// Text value, or null when empty (unknown).
-std::string jsonText(const std::string& s) {
-  return s.empty() ? "null" : jsonString(s);
+// Integer, or null when unset.
+std::string jsonInt(const std::optional<int>& v) {
+  return v ? std::to_string(*v) : "null";
+}
+
+// Pitch class of a KeyExtractor key name: C = 0 ... B = 11.
+std::optional<int> keyPitch(const std::string& key) {
+  static const std::pair<const char*, int> names[] = {
+    {"C", 0}, {"C#", 1}, {"Db", 1}, {"D", 2}, {"D#", 3}, {"Eb", 3}, {"E", 4},
+    {"F", 5}, {"F#", 6}, {"Gb", 6}, {"G", 7}, {"G#", 8}, {"Ab", 8}, {"A", 9},
+    {"A#", 10}, {"Bb", 10}, {"B", 11}};
+  for (const auto& [name, pitch] : names) {
+    if (key == name) return pitch;
+  }
+  return std::nullopt;
+}
+
+// Mode of a KeyExtractor scale name: major = 0, minor = 1.
+std::optional<int> keyMode(const std::string& scale) {
+  if (scale == "major") return 0;
+  if (scale == "minor") return 1;
+  return std::nullopt;
 }
 
 // Start of the first and end of the last non-silent 512-sample frame (frames
@@ -1564,8 +1584,8 @@ void printFile(std::ostream& o, const std::string& file, const Features& f,
     << in << "\"duration\": " << jsonSeconds(f.duration) << ",\n"
     << in << "\"bpm\": " << jsonNum(f.bpm) << ",\n"
     << in << "\"bpm_confidence\": " << jsonNum(f.bpmConfidence) << ",\n"
-    << in << "\"key\": " << jsonText(f.key) << ",\n"
-    << in << "\"scale\": " << jsonText(f.scale) << ",\n"
+    << in << "\"key_pitch\": " << jsonInt(keyPitch(f.key)) << ",\n"
+    << in << "\"key_mode\": " << jsonInt(keyMode(f.scale)) << ",\n"
     << in << "\"key_strength\": " << jsonNum(f.keyStrength) << ",\n"
     << in << "\"tuning_frequency\": " << jsonNum(f.tuningFrequency) << ",\n"
     << in << "\"tuning_cents\": " << jsonNum(f.tuningCents) << ",\n"

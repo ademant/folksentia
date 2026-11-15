@@ -88,12 +88,12 @@ when that is set, for reproducible builds.
 Exit status is 0 when every file was analysed, 1 when any file failed (the
 other files are still printed), 2 for bad usage.
 
-## Output schema (version 1)
+## Output schema (version 2)
 
 Output is one object per file, or a JSON array when several files are given.
 Use `--array` to always get an array, so that the output type doesn't depend on
 how many files a glob matched.
-Every object has `"schema": 1`. Every field listed below is always present in
+Every object has `"schema": 2`. Every field listed below is always present in
 its object; a field whose value is unknown is `null`, never missing. The
 exceptions are the fields that are only printed when their option is given:
 `waveform` (`--waveform`), `beats` (`--beats` or `--downbeats`),
@@ -104,7 +104,7 @@ and `fingerprint` (`--fingerprint`), and
 A file that cannot be decoded gives an error object in place of its analysis:
 
 ```json
-{"schema": 1, "file": "broken.mp3", "error": "no audio decoded from broken.mp3"}
+{"schema": 2, "file": "broken.mp3", "error": "no audio decoded from broken.mp3"}
 ```
 
 Analysis object fields:
@@ -115,7 +115,8 @@ Analysis object fields:
 | `file_base64` | string | only for paths that are not valid UTF-8: the exact path bytes, base64 |
 | `duration` | number | seconds |
 | `bpm`, `bpm_confidence` | number or `null` | tempo and its confidence (confidence is 0 with `--fast`); `null` when no tempo was found |
-| `key`, `scale` | string or `null` | key and mode, measured against the file's own tuning; `null` if unknown or weak (see below) |
+| `key_pitch` | integer or `null` | pitch class of the key, C = 0, C# = 1 ... B = 11; `null` if unknown or weak (see below) |
+| `key_mode` | integer or `null` | 0 for major, 1 for minor; `null` if unknown or weak (see below) |
 | `key_strength` | number or `null` | key detection strength, 0..1 |
 | `tuning_frequency`, `tuning_cents` | number or `null` | reference A in Hz and deviation from 440 Hz |
 | `tuning_spread_cents` | number or `null` | how much the tuning measured per 30 s segment varies (see below); `null` with fewer than two segments |
@@ -144,7 +145,7 @@ it is spread out like noise or percussion (8.7 for white noise; at most
 log2(1025) = 10); the same six tracks read 6.9 to 7.8.
 
 **Key and tuning.** The key is detected against the measured tuning, not
-against A = 440 Hz. `key` and `scale` are `null` when `key_strength` is below
+against A = 440 Hz. `key_pitch` and `key_mode` are `null` when `key_strength` is below
 0.6; `key_strength` is still reported. On folk recordings, reliable keys came
 out at 0.85–0.95, and unaccompanied singing that drifted by a quarter tone at
 0.41–0.54.
@@ -158,13 +159,13 @@ cents for most recordings, 18–24 for some, and about 68 both for an a cappella
 song and for a loudly mastered band recording.
 
 For digital silence (no frame above −100 dBFS) tempo, key and tuning are not
-measured: `bpm`, `bpm_confidence`, `key`, `scale`, `key_strength`,
+measured: `bpm`, `bpm_confidence`, `key_pitch`, `key_mode`, `key_strength`,
 `tuning_frequency`, `tuning_cents` and `tuning_spread_cents` are `null` and `beats` is empty.
 
 Times in seconds (`duration`, `beats`, `fingerprint.durationSec`) are printed
 with three decimals, i.e. to the millisecond, however long the file is.
 
-`silence` (`schema` 1):
+`silence` (`schema` 2):
 
 - `thresholdDb`: a frame is silent when its mean power is below this many dB
   relative to full scale (`--silence-threshold`, default −100).
@@ -188,7 +189,7 @@ mono mix, so the threshold is converted with a fixed offset (−2.3 dB); it is a
 approximation. `thresholdDb` reports the threshold used. Digital silence has no
 loudness; the threshold then stays at −100 dB.
 
-`loudness` (`schema` 1):
+`loudness` (`schema` 2):
 
 - `integratedLufs`: EBU R128 integrated loudness (LUFS), from Essentia's `LoudnessEBUR128`.
 - `truePeakDbtp`: true peak in dBTP, the highest peak of either channel, measured as ITU-R BS.1770-4 specifies: 4x oversampling by a polyphase FIR interpolator (49-tap Hann-windowed sinc, as in libebur128).
@@ -200,7 +201,7 @@ The loudness values are measured at the file's own sample rate. A mono
 file is measured as dual mono (the same signal on both channels). All values are
 `null` when the value is undefined, for example for digital silence.
 
-`waveform` (`schema` 1, `--waveform` only):
+`waveform` (`schema` 2, `--waveform` only):
 
 - `bins`: number of bins, as requested.
 - `peaks`: array of `bins` integers 0..255. Each is the largest absolute sample in that bin, scaled so the loudest bin is 255.
@@ -223,7 +224,7 @@ The measured bar fails when the beat tracker counts a different note value
 than the bar's pulse (e.g. some waltzes, where `barSec` is 2.5 beats); the
 meter then falls back to 4. Pass `--meter` when the meter is known.
 
-`onsets` (`schema` 1, `--onsets` only): note onsets, the same ones `rhythm`
+`onsets` (`schema` 2, `--onsets` only): note onsets, the same ones `rhythm`
 and `microtiming` use (log spectral flux, peaks at least 50 ms apart).
 
 - `timesMs`: array of onset times in integer milliseconds.
@@ -237,7 +238,7 @@ unstretched) and for display.
 Essentia's pinned commit does not provide a downbeat or bar-tracking algorithm,
 so this is folksentia's own computation on top of the beat ticks.
 
-`fingerprint` (`schema` 1, `--fingerprint` only):
+`fingerprint` (`schema` 2, `--fingerprint` only):
 
 - `algorithm`: always `"chromaprint"`.
 - `version`: Chromaprint algorithm version, currently 2 (Chromaprint's default
@@ -264,7 +265,7 @@ silence, files shorter than 10 s, or when no cycle can be measured.
 
 ```json
 "rhythm": {
-  "schema": 1,
+  "schema": 2,
   "pulseSec": 0.527, "barPulses": 3, "barSec": 1.581, "barsPerMin": 38,
   "barScore": 0.34,
   "alternatives": [{"pulses": 6, "sec": 3.161, "score": 0.23}, {"pulses": 2, "sec": 1.054, "score": 0.11}],
@@ -355,7 +356,7 @@ U+FFFD (`\ufffd`), and `file_base64` holds the exact path bytes (standard
 base64 with padding), so the result can still be matched to the file:
 
 ```json
-{"schema": 1, "file": "Dans_l\ufffdil.opus", "file_base64": "RGFuc19sxWlsLm9wdXM=", ...}
+{"schema": 2, "file": "Dans_l\ufffdil.opus", "file_base64": "RGFuc19sxWlsLm9wdXM=", ...}
 ```
 
 The same replacement applies to every other string, for example error
