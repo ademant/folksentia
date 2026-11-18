@@ -159,6 +159,35 @@ def main():
         phase = w["beats"][wd[0]] % 1.2
         check(min(phase, 1.2 - phase) < 0.07, f"accented 3/4 clicks: downbeats on the loud beats (offset {phase:.3f} s)")
 
+    # Grouping: loud clicks on the beat starts of an uneven bar, soft clicks
+    # on the other pulses. Equal clicks have no grouping.
+    def grouped(pattern, pulse, soft, seconds=60):
+        bar, starts, pos = sum(pattern), set(), 0
+        for g in pattern:
+            starts.add(pos)
+            pos += g
+        x = [0.0] * (rate * seconds)
+        for b in range(int(seconds / pulse) - 1):
+            start, amp = int(b * pulse * rate), (0.8 if b % bar in starts else soft)
+            for k in range(int(0.03 * rate)):
+                x[start + k] += amp * math.sin(2 * math.pi * 1000 * k / rate) * math.exp(-k / (0.008 * rate))
+        return x
+
+    def rotations(g):
+        return [g[i:] + g[:i] for i in range(len(g))]
+
+    check(wr is not None and wr["grouping"] is None, f"accented 3/4 clicks: no grouping ({wr and wr['grouping']})")
+    for name, pattern, pulse in (("3+2", [3, 2], 0.2), ("3+3+2+3", [3, 3, 2, 3], 0.15)):
+        write_wav(j("grouped.wav"), rate, 1, grouped(pattern, pulse, 0.3))
+        rc, g, _, _ = run(j("grouped.wav"))
+        gr = g["rhythm"] and g["rhythm"]["grouping"]
+        check(gr is not None and gr["parts"] in rotations(pattern) and 0 < gr["score"] <= 1,
+              f"{name} clicks: grouping {name} ({g['rhythm'] and (g['rhythm']['barPulses'], gr)})")
+    write_wav(j("grouped.wav"), rate, 1, grouped([2, 2, 2, 2], 0.2, 0.3))
+    rc, g, _, _ = run(j("grouped.wav"))
+    check(g["rhythm"] is None or g["rhythm"]["grouping"] is None,
+          f"2+2+2+2 clicks: no grouping ({g['rhythm'] and g['rhythm']['grouping']})")
+
     # Tempo stability: steady clicks barely move; clicks speeding up from 100
     # to 125 BPM over 60 s drift and have a positive slope.
     st = rh and rh["tempoStability"]

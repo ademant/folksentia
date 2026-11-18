@@ -270,6 +270,7 @@ silence, files shorter than 10 s, or when no cycle can be measured.
   "barScore": 0.34,
   "alternatives": [{"pulses": 6, "sec": 3.161, "score": 0.23}, {"pulses": 2, "sec": 1.054, "score": 0.11}],
   "accents": {"energy": [1, 0.57, 0.41], "bass": [0.73, 1, 0.87]},
+  "grouping": null,
   "tempoCurve": [{"startSec": 0.0, "barsPerMin": 38}, {"startSec": 30.0, "barsPerMin": 37.9}],
   "tempoStability": {"jitterPct": 1.22, "driftPct": 2.92, "slopePctPerMin": 0.38},
   "microtiming": {"npvi": 32.7, "withinBarPct": 5.6, "acrossBarsPct": 2.7, "beatsPerBar": 2,
@@ -292,6 +293,22 @@ silence, files shorter than 10 s, or when no cycle can be measured.
   bar start itself is not known). A valse showed one heavy beat
   (`[1, 0.57, 0.41]`), two mazurkas almost even beats (`[1, 0.86, 0.91]`,
   `[1, 0.85, 0.87]`).
+- `grouping`: how the bar's pulses group into beats when the grouping is
+  uneven, e.g. `{"parts": [3, 3, 2, 3], "score": 0.8}` for a valse à 11 or
+  `[4, 2]` for a hanter dro, else `null` (even bars, unclear bars, bars of
+  fewer than 5 or more than 12 pulses). The first part starts at the first
+  beat start at or after the first accent pulse; the bar start itself is not
+  known. Candidates are the groupings into beats of 2 and 3 pulses and the
+  two-beat groupings 4+2 and 4+3; the even groupings (2+2+2, 3+3, 4+4, ...)
+  compete with them. Each is scored by the correlation of its beat starts with
+  the accent profile (energy plus bass). An uneven grouping is reported when,
+  on the whole track, it beats the best even one by at least 0.1, its beat
+  starts are at least 1.2 times as loud as the other pulses, and it is also
+  the best candidate in at least half of the 30-second windows. `score` is
+  that share of windows. It depends on `barPulses`: when the bar is found at
+  another pulse level (e.g. 4 quarters for a 3+3+2 bar of eighths), there is
+  no grouping. Experimental: the thresholds are not yet validated on many
+  tunes.
 - `tempoCurve`: bars per minute per 30-second window (one point for shorter
   files), which shows accelerandos. Each window's bar is searched within
   ±5 % of the whole track's, so larger changes show in `tempoStability`.
@@ -345,8 +362,7 @@ On the labelled tunes in `scripts/eval/folk_labels.json`, the bar is right for
 6 of 7 (three hanter dros, a valse à 11, a valse and two mazurkas); an a
 cappella hanter dro gets 4 quarters instead of 6. These tunes were also used
 to design the method, so expect lower accuracy on other music: check
-`barScore` and `alternatives`. The grouping of the bar into beats (4+2,
-3+3+2+3) is not reported; it could not be measured reliably.
+`barScore` and `alternatives`.
 
 ### File names
 
