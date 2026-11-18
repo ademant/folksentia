@@ -79,7 +79,7 @@ def main():
         tol = t.get("bar_tolerance", 0.04)
         bok = bar is not None and abs(bar - t["bar_sec"]) <= tol * t["bar_sec"]
         bar_ok += bok
-        g = rh.get("grouping")
+        g = (rh.get("grouping") or {}).get("parts")
         if len(t["grouping"]) > 1 and len(set(t["grouping"])) > 1:  # uneven: a real grouping test
             grouping_n += 1
             pulses = sum(g) if g else 1
