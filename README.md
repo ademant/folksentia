@@ -127,7 +127,7 @@ Analysis object fields:
 | `loudness` | object | see below |
 | `waveform` | object | `--waveform` only, see below |
 | `beats` | array of seconds | `--beats` or `--downbeats` only |
-| `downbeatMeter` | int | `--downbeats` only; beats per bar used for `downbeatIndexes` |
+| `downbeatMeter` | int or `null` | `--downbeats` only; beats per bar, see below; `null` when unknown |
 | `downbeatIndexes` | array of ints or `null` | `--downbeats` only; indexes into `beats` that start a bar |
 | `onsets` | object or `null` | `--onsets` only, see below; `null` for digital silence |
 | `fingerprint` | object or `null` | `--fingerprint` only, see below |
@@ -211,18 +211,24 @@ structure, for example with fewer than two bars of beats or when no bar phase
 is clearly louder than the others. With `--meter N` it uses N beats per bar.
 Without it, the beats per bar come from the measured bar (`rhythm.barSec`
 divided by the median beat interval, when that is within 15% of a whole
-number from 2 to 12), and twice that is tried as well; twice is chosen only
-when its phase is at least 25% clearer. Without a measured bar it uses 4, and
-twice the measured bar is still tried. `downbeatMeter` says which was used.
+number from 2 to 12). For an even number, twice that is tried as well and
+chosen only when its phase is at least 25% clearer; an odd number is never
+doubled (a 3/4 bar does not become 6). `downbeatMeter` says which was used.
+
+When the beats do not divide the bar, for example a 3/8 bourrée whose beat
+tracker ticks every two eighths, no bar can start on a beat:
+`downbeatIndexes` is `null` and `downbeatMeter` is the bar in pulses
+(`rhythm.barPulses`, 2 to 12). Without a measured bar both are `null`;
+folksentia no longer assumes 4.
 The bass (below 150 Hz) energy just after each beat is compared across the
 possible bar phases. The phase is chosen when its beats are at least 20%
 louder than the other beats. When the bass gives no clear phase, the same is
 tried with the strongest note onset within 50 ms of each beat. Treat the
 thresholds as untuned until they have been checked on known files.
 
-The measured bar fails when the beat tracker counts a different note value
-than the bar's pulse (e.g. some waltzes, where `barSec` is 2.5 beats); the
-meter then falls back to 4. Pass `--meter` when the meter is known.
+The meter is right far more often for binary bars than for ternary ones (see
+[the meter evaluation](scripts/eval/README.md#meter-labels)). Pass `--meter`
+when the meter is known.
 
 `onsets` (`schema` 2, `--onsets` only): note onsets, the same ones `rhythm`
 and `microtiming` use (log spectral flux, peaks at least 50 ms apart).
