@@ -369,11 +369,18 @@ std::optional<Real> tuningSpread(const std::vector<Real>& segments, Real overall
   return at(0.9) - at(0.1);
 }
 
-// `signal` resampled from rate `from` to rate `to`.
+// `signal` resampled from rate `from` to rate `to`, with libsamplerate's
+// fastest sinc converter (quality 2): its passband reaches about 80 % of the
+// output Nyquist frequency (17.6 kHz at 44.1 kHz), above anything measured
+// here, and it takes about a quarter of the time of Essentia's default
+// (quality 1, medium sinc), which was the slowest stage of a run (#52).
+// Loudness and true peak are measured before resampling.
+constexpr int kResampleQuality = 2;
+
 std::vector<Real> resample(std::vector<Real> signal, Real from, Real to) {
   if (from == to) return signal;
   std::vector<Real> out;
-  auto rs = make("Resample", "inputSampleRate", from, "outputSampleRate", to);
+  auto rs = make("Resample", "inputSampleRate", from, "outputSampleRate", to, "quality", kResampleQuality);
   rs->input("signal").set(signal);
   rs->output("signal").set(out);
   rs->compute();
