@@ -59,7 +59,7 @@ DANCES = {
     "Scottish": ("2/4", "binary", {"status": "assumed", "notes": "phrase structure still to discuss"}),
     "Polka": ("2/4", "binary", {"status": "assumed"}),
     "Chapeloise": ("2/4", "binary", {"status": "assumed"}),
-    "Valse": ("3/4", "ternary", {"status": "assumed"}),
+    "Valse": ("3/4", "ternary", {"status": "confirmed"}),
     "Mazurka": ("3/4", "ternary", {"status": "assumed"}),
     "Valse 5t": ("5/4", "odd", {"grouping": [3, 2], "status": "assumed"}),
     "Valse 8t": ("8/4", "odd", {"grouping": [3, 3, 2], "status": "assumed"}),

@@ -114,7 +114,7 @@
   "Valse": {
    "meter": "3/4",
    "type": "ternary",
-   "status": "assumed"
+   "status": "confirmed"
   },
   "Mazurka": {
    "meter": "3/4",
@@ -245,7 +245,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Adar/Bohada/02.Mazurka_à_Raphaël_(M.Martineau).opus",
@@ -272,7 +272,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Adar/Bohada/09.Scottish_à_Brunet_(A.Bibonne).opus",
@@ -362,7 +362,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Airboxes/One_for_the_Road/05.Bourrée_sY_dDans_Troyes_(Bourrée_2_temps).opus",
@@ -411,7 +411,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Airboxes/One_for_the_Road/11.Bultkets_(Scottish).opus",
@@ -461,7 +461,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Airboxes/confluence/07.Öblarn_Dürnstein_Castle.opus",
@@ -497,7 +497,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance + meter tag",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Amann_Rik/Petites_confidences_au_creux_de_loreille/01.Tour.opus",
@@ -601,7 +601,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Ampouailh/Languages/02_Lang_u_ages.ogg",
@@ -737,7 +737,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "An_Erminig/Plomadeg/10_Triste_ménage.opus",
@@ -946,7 +946,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "AndreasNeumannMarkusKrimmer/BalFolklive/01_An_Dro.opus",
@@ -1011,7 +1011,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "AndreasNeumannMarkusKrimmer/BalFolklive/12_Le_passage.opus",
@@ -1053,7 +1053,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Arbadetorne/Adjuse/06.Mazurka_à_A_Chaillou.opus",
@@ -1089,7 +1089,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Arbadetorne/Garoche/002_L'empêchement_aux_bans.opus",
@@ -1098,7 +1098,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Arbadetorne/Garoche/006_Jo_Louis.opus",
@@ -1152,7 +1152,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Arquethi/EP/01_Scottish_dArsène_Courty_Rummi.opus",
@@ -1230,7 +1230,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Au_gre_des_vents/Etoile_du_matin/01.Sombre_soupcon.opus",
@@ -1239,7 +1239,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Au_gre_des_vents/Etoile_du_matin/04.Les_Voltigeurs.opus",
@@ -1266,7 +1266,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Au_gre_des_vents/Fraxinelles/03_Falkenlied_(scottisch).opus",
@@ -1284,7 +1284,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Au_gre_des_vents/Fraxinelles/08_Grand_Espoir_(mazurka).opus",
@@ -1342,7 +1342,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Au_gre_des_vents/La_Fiancée_du_diable/07_Hippocampe.opus",
@@ -1417,7 +1417,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Au_gre_des_vents/Soll_lawa/07.Scottish_alsacienne.opus",
@@ -1462,7 +1462,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "BA.FNU/1/002_skočíš_scottish.opus",
@@ -1530,7 +1530,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "BA.FNU/1/009_thon_idée_laridée_8tps.opus",
@@ -1596,7 +1596,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "BA.FNU/Quarantunes/05.Mr_Folxlide_Living_in_a_pop_song.opus",
@@ -1614,7 +1614,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "BA.FNU/Quarantunes/08.Marina_Lazar_Gavotte_Y.opus",
@@ -1650,7 +1650,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "BA.FNU/Quarantunes/14.BA.FNU_I_like_to_bourrée_bourrée.opus",
@@ -1782,7 +1782,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Bal_Barbare/Bal_Barbare/009_Polka_d'en_bas.opus",
@@ -1859,7 +1859,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Bal_o'Gadjo/Danses_d'ici/007_Réveil_Agité.opus",
@@ -2066,7 +2066,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Ball_Noir/Bitter_Dreams/006_Love_And_Resonance_Symphony.opus",
@@ -2131,7 +2131,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Ball_Noir/Lost_Serenades/006_Opus_38.opus",
@@ -2217,7 +2217,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Baptiste_Loosfelt/Mesun/15_Valse_à_Maximin.opus",
@@ -2226,7 +2226,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Barba_Loutig/Blev/02_Eit_ma_kreskei_ar_garantez.opus",
@@ -2339,7 +2339,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Bargainatt/Cest_pas_banane/12_Elna_(Mazurka).opus",
@@ -2366,7 +2366,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Bargainatt/Omic/03_Permis_C_(Polka).opus",
@@ -2393,7 +2393,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Bargainatt/Omic/08_Mazurkanoë.opus",
@@ -2429,7 +2429,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Bargainatt/Omic/12_Chapi_Chapo_(Chapeloise).opus",
@@ -2519,7 +2519,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Bargainatt/if/13_Kutsabo_Mèmoire_sombre_Bourrèe_à_2_temps.opus",
@@ -2596,7 +2596,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Beat_Bouet_Trio/Rupture_vers_le_Futur/03_Dig_Dig_Dig_Feat_Kris_Nolly.opus",
@@ -2774,7 +2774,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Benoit_Guerbigny/La_Genereuse/08_Desert_froid_La_genereuse_suite_de_mazurkas.ogg",
@@ -2801,7 +2801,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Benoit_Guerbigny_et_Christian_Pacher/en_sol_majeur/03.Valse_suédoise.opus",
@@ -2810,7 +2810,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Benoit_Guerbigny_et_Christian_Pacher/en_sol_majeur/04.Valse_à_Chloé.opus",
@@ -2819,7 +2819,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Benoit_Guerbigny_et_Christian_Pacher/en_sol_majeur/09.Scottish_à_la_fusée_volée.opus",
@@ -2878,7 +2878,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Blowzabella/Dance/04_Penda's_Fen_The_White_Rose_Epic_Branle.opus",
@@ -2914,7 +2914,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Blowzabella/Dance/09_Horizonto.opus",
@@ -2977,7 +2977,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Blowzabella/Two_Score/03_SCCS_Polkas.opus",
@@ -3040,7 +3040,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "BmB/Ge_vindt_wel_een_taal/03.Déjeuner_sur_lherbe.opus",
@@ -3049,7 +3049,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "BmB/Ge_vindt_wel_een_taal/04.Les_Vignerons_Le_Ménage_à_trois.opus",
@@ -3112,7 +3112,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Boreale/Mousson/002_Bleu_d'Auvergne.opus",
@@ -3279,7 +3279,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Brotto_Lopez_Sextet/La_ronda_dels_viatges/6.Avenueschottis_(scottish).opus",
@@ -3342,7 +3342,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Bruno_Bizis_Band/Je_mène_les_loups/006_ridées_a_6_temps.opus",
@@ -3392,7 +3392,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Bruno_Le_Tron_-_Éric_Montbel_-_Laurence_Charrier/Topanga!/002_L'année_nouvelle.opus",
@@ -3419,7 +3419,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Bruno_Le_Tron_-_Éric_Montbel_-_Laurence_Charrier/Topanga!/012_Mazurka_du_garçon_français.opus",
@@ -3474,7 +3474,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Cecilia/Danser_en_Couple_Ensemble_au_Bal/002_Shalom_Aleichem.opus",
@@ -3501,7 +3501,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Cecilia/Danser_en_Couple_Ensemble_au_Bal/006_Chiens_Battus_Chats_Perdus.opus",
@@ -3519,7 +3519,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Cecilia/Danser_en_Couple_Ensemble_au_Bal/008_Scottish_Ah_Ca_Ira.opus",
@@ -3546,7 +3546,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Cecilia/Danser_en_Couple_Ensemble_au_Bal/011_Scottish_pour_Maud.opus",
@@ -3614,7 +3614,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Cecilia/In_Bad/007_Mistige_Jig_Dorothea.opus",
@@ -3678,7 +3678,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Ciac_Boum/Volume_1/01.Polkas.opus",
@@ -3723,7 +3723,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Ciac_Boum/Volume_2/05.Scottish_Manon.opus",
@@ -3750,7 +3750,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Ciac_Boum/Volume_3/01.Polka_à_Michenau.opus",
@@ -3768,7 +3768,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Ciac_Boum/Volume_3/09.Scottish_de_la_Borne.opus",
@@ -3786,7 +3786,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Ciac_Boum/Volume_3/12.Mazurkas_à_Auzaneau_et_Moïse.opus",
@@ -3804,7 +3804,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Ciac_Boum/Volume_4/06.Les_Rêves_du_géant_(valse).opus",
@@ -3813,7 +3813,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Ciac_Boum/Volume_4/10.Par_un_beau_clair_de_lune_(valse).opus",
@@ -3822,7 +3822,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Ciac_Boum/Volume_4/11.Mazurka_du_levant.opus",
@@ -3867,7 +3867,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "DahlgrenAndersen/Wessmanlandsbitar/12.Spikens_vals_efter_Axel_Inge.opus",
@@ -3876,7 +3876,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Dan_Ar_Braz/A_toi_et_ceux/10_La_Valse_de_la_longue_espérance.opus",
@@ -3885,7 +3885,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Darhaou/An_Deirvet/04.Le_Printemps_mEndort_lamour_Me_reveille_rond_de_Saint_Vincent.opus",
@@ -3912,7 +3912,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Dazkarieh/Ruido_do_Silencio/03.Mazurka_da_água.opus",
@@ -3948,7 +3948,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Decibal/Autochtone/006_Bourrée_GV_Montagnarde.opus",
@@ -4011,7 +4011,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Decibal/Il_est_l'heure_de_danser/001_Love_is_gone.opus",
@@ -4087,7 +4087,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Decibal/Il_est_l'heure_de_danser/011_Les_trois_ténèbres.opus",
@@ -4211,7 +4211,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Digresk/Al_Liamm/01_Eglise_cathodique_andro.ogg",
@@ -4268,7 +4268,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Digresk/Al_Liamm/10_Captain_Meduse_pile_menu.ogg",
@@ -4304,7 +4304,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Dirty_Caps/Musique_traditionnelle_du_Quercy_et_de_Gascogne/8.Nau_polòtas_(rondeau_Gascogne).opus",
@@ -4371,7 +4371,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Djal/Extra_bal/09_Polka_à_Jolive_Lacrobate_Monster_café_polkas.opus",
@@ -4457,7 +4457,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Djal/Quarterlife/11_LAntre_de_Vénus.opus",
@@ -4602,7 +4602,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Droles_de_groles/Harmonie_de_couleurs/05.Chapeau_journal_et_does_de_ouir_A_quatre_pattes.opus",
@@ -4638,7 +4638,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Droles_de_groles/Harmonie_de_couleurs/12.Big_wooden_Woman.opus",
@@ -4665,7 +4665,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_Abela_Vidal/La_Bela_Vida/002_Las_vitarellas_e_lo_cardalhac.opus",
@@ -4728,7 +4728,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_Absynthe/2/010_Scottish_du_Quintet.opus",
@@ -4755,7 +4755,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_Absynthe/Duo_Absynthe/008_Mazurka_à_Clément.opus",
@@ -4809,7 +4809,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_Blain_Leyzour/Duo_Blain_Leyzour/13.Scottish.opus",
@@ -4923,7 +4923,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_Brotto_Lopez/HDQ/004_La_rivière_de_Regourd.opus",
@@ -4932,7 +4932,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_Brotto_Lopez/HDQ/007_Solelh_que_fas_aval.opus",
@@ -4941,7 +4941,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_Brotto_Lopez/HDQ/008_Bourrée_bec.opus",
@@ -5004,7 +5004,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_Brotto_Milleret/07_Sur_les_quais_(CB)_La_presqu'île_(CB)_Au_coin_de_la_rue_(SM).opus",
@@ -5094,7 +5094,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_Cam_et_Leon/Cam_et_Leon/07_Eh_Papa_Bourrée_à_Plassard.opus",
@@ -5157,7 +5157,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_Cassard/Bukalemun/02.Midwinters_Day_Der_Rote_Ochs.opus",
@@ -5197,7 +5197,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_Cassard/Pengobilo/003_Le_sonneur_de_cloches.opus",
@@ -5279,7 +5279,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_De_Schepper-Sanczuk/Port_de_Taipana/04_Hidromelkiway.opus",
@@ -5297,7 +5297,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_De_Schepper-Sanczuk/Port_de_Taipana/09_Bemol.opus",
@@ -5390,7 +5390,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_Guerbigny_Thebaut/Les_Pieds_sur_la_Braise/01.Scottish_à_Lucien.opus",
@@ -5408,7 +5408,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_Hamon_Martin_Annie_Ebrel_Orchestre_Symphonique_de_Bretagne/fest-noz_symphonique/01_Déridé_ridéri_déri_dé_(ridée_6_temps).opus",
@@ -5495,7 +5495,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_Laloy_Le_Tron/Live/10_Valhermeil.opus",
@@ -5522,7 +5522,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_Liorzou_Bocher/An_dre_nevez/005_Tournez_tournez_donc.opus",
@@ -5632,7 +5632,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_Nello/Le_Pouce_et_lindex/07.Le_Pouce_et_lindex.opus",
@@ -5668,7 +5668,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_Nello/Le_Pouce_et_lindex/11.Quand_le_soldat.opus",
@@ -5686,7 +5686,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_Nello/Le_Pouce_et_lindex/13.À_deux_mains.opus",
@@ -5753,7 +5753,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_Nello/Overland/08_The_Magic_Slipper_Tir_Tairngiri.ogg",
@@ -5771,7 +5771,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_Nello/Overland/12_A_la_porte_au_palais_Jai_vu_laffairs_cd_matin.ogg",
@@ -5929,7 +5929,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_Pilartz_Gielen/UN/008_Les_loups_du_Cantal.opus",
@@ -6055,7 +6055,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_TTC/La_Valse_a_Viseur/01.La_valse_à_viseur.opus",
@@ -6064,7 +6064,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_TTC/La_Valse_a_Viseur/02.Les_devants__Ruelle_du_pensionnat.opus",
@@ -6091,7 +6091,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_TTC/La_Valse_a_Viseur/05.Kost_ar_what_.opus",
@@ -6141,7 +6141,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_des_Cimes/Adiu_Amors/1.Lentorn_de_ma_maison.opus",
@@ -6150,7 +6150,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_des_Cimes/Adiu_Amors/2.Lé_sou_bèu_poun_dAbignoun.opus",
@@ -6195,7 +6195,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Duo_lHetre_Heureux/Toujours_aucune_trace_du_respect/02_Dans_tes_yeux_mazurka.opus",
@@ -6565,7 +6565,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "EmBRUN/EmBRUN/005_Scottish_voor_Johan.opus",
@@ -6706,7 +6706,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "EmBRUN/EmBRUNN2/11_Bommekes_in_de_broek_Magique_(Bourée_3_temps).opus",
@@ -6733,7 +6733,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "EricTheze/Reflets/02.La_Motte_en_Provence.opus",
@@ -7038,7 +7038,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Esquisse/Live/06.Traffic_(ridée_6_temps).opus",
@@ -7137,7 +7137,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Fahrenheit/locean_mene/04_Sauvage_mazurka.opus",
@@ -7195,7 +7195,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Feather_and_Fox/A_winter_morning/01_First_Snow_Scottish.ogg",
@@ -7231,7 +7231,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Feather_and_Fox/A_winter_morning/05_The_Maniac_2t_Bourree.ogg",
@@ -7352,7 +7352,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Filippo_Gambetta/Circo_Carnevale/01_Immanence.opus",
@@ -7361,7 +7361,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Filippo_Gambetta/Circo_Carnevale/02_Bourrée_du_Caméléon.opus",
@@ -7379,7 +7379,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Filippo_Gambetta/Circo_Carnevale/05_Kostardella.opus",
@@ -7423,7 +7423,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Fior/Manuskript/05.Allgemeines_Wandern.opus",
@@ -7432,7 +7432,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Fior/Manuskript/07.Engländer_VII766.opus",
@@ -7537,7 +7537,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Fleuves/2/08_Source.opus",
@@ -7768,7 +7768,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Freres_de_Sac/Tout_na_quun_temps/03_Tout_na_quun_temps_Bourree_2_temps.ogg",
@@ -7823,7 +7823,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "GFVP/Tatoeage/08_Valse_vigilante_pour_les_annulaires_qui_disent_non.opus",
@@ -7832,7 +7832,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "GFVP/Tatoeage/10_Mazurka_van_Zemst.opus",
@@ -7859,7 +7859,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Gabriel_Lenoir_Aurelien_Tanghe/La_Maison_de_Danse/003_Neige.opus",
@@ -7913,7 +7913,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Gabriel_Lenoir_Aurelien_Tanghe/La_Maison_de_Danse/009_RN_59.opus",
@@ -7940,7 +7940,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Gabriel_Lenoir_Aurelien_Tanghe/La_Maison_de_Danse/012_L'apprenti.opus",
@@ -7985,7 +7985,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Gasconha_Plus/En_dançar/004_Tiston.opus",
@@ -8030,7 +8030,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Gasconha_Plus/En_dançar/011_Nau_que_cantan.opus",
@@ -8048,7 +8048,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Gonnagles/CDII_ten_Bal/003_Bourrée_in_3.opus",
@@ -8075,7 +8075,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Gonnagles/CDII_ten_Bal/007_Rondodrome.opus",
@@ -8111,7 +8111,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Gonnagles/CDII_ten_Bal/014_Loopbaan_Scottish.opus",
@@ -8129,7 +8129,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Gonnagles/CDII_ten_Bal/016_Honderd_Harphaakjes_Bourrée.opus",
@@ -8215,7 +8215,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Gonnagles/Concordia/09_De_poolkap.opus",
@@ -8242,7 +8242,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Gonnagles/Concordia/13_Zo_mooi_anders.opus",
@@ -8287,7 +8287,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Gonnagles/SKWIEK/10_Mazurka_de_Servant_Trad_Frankrijk_-_Mazurka_des_Ecoliers_de_Saint-Genest.opus",
@@ -8342,7 +8342,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Groove_Factory/continuum/05.Passager_clandestin_(hanterdro).opus",
@@ -8409,7 +8409,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Groove_Factory/nexus/06_dinomir_rosebud_bourrée_á_deux_temps.opus",
@@ -8490,7 +8490,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Groupe_sans_gain/Folk_a_plein_pot/07.Les_gars_de_Locminé.opus",
@@ -8562,7 +8562,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Groupe_sans_gain/Rue_folk_dingue/12.12_ans_dage.opus",
@@ -8808,7 +8808,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Harfenlicht/Im_Harfenwald/09_An_Dro_Mystique.opus",
@@ -8997,7 +8997,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Hotel_Palindrone/Samo_Riba_Live/03.Andro_Samo_Riba.opus",
@@ -9025,7 +9025,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Hotel_Palindrone/Samo_Riba_Live/12.Fünferwalzer_Family_Affair_Early_Birds.opus",
@@ -9074,7 +9074,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "I_Fratelli_Tarzanelli/Antipodes/010_Scottish_du_29_mars.opus",
@@ -9110,7 +9110,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "JMK/Astronoz/009_Catalina.opus",
@@ -9169,7 +9169,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Jean-Pierre_Yvert/Durspel_från_Dalarna/018_Till_Rolf_schottis_av_Jean_Pierre_Yvert.opus",
@@ -9258,7 +9258,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Johannes_Mayr/Der_dritte_Nachtisch/15.Rümpelpolka_Minneapolis_Polka.opus",
@@ -9285,7 +9285,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Johannes_Mayr/Der_dritte_Nachtisch/19.Weihnachts_Schottisch.opus",
@@ -9321,7 +9321,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "KV_Express/Luna/003_Polka_Barou.opus",
@@ -9510,7 +9510,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Kazdall/15Pemzek_CD1_Live/10.Lanvadoù_Du.opus",
@@ -9604,7 +9604,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Kelenn/Chantier_de_Nuit/08_Kostard_a_la_Ouate_Kost_ar_choad.opus",
@@ -9672,7 +9672,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Kelten_zonder_Grenzen/Ik_zie_een_konijntje/003_Jigtime.opus",
@@ -9762,7 +9762,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Kelten_zonder_Grenzen/Le_Cheile/007_Riddles_in_the_Dark.opus",
@@ -9885,7 +9885,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Koun/C'est_en_souhaitant_bonsoir/01_Koun_Tour_le_gué.opus",
@@ -10311,7 +10311,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "La_Soubirane/Elektribal/04_Quem_soi_lhevada_valse.opus",
@@ -10320,7 +10320,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "La_Soubirane/Elektribal/08_Nau_que_canten_rondeau_en_couple.opus",
@@ -10347,7 +10347,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "La_Sylva/Koukounisbah/04_Nihavend_Sirto.opus",
@@ -10374,7 +10374,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Lair_inconnu/jamais_entendu_parler/3_Batotopique_bourree_2_temps.ogg",
@@ -10423,7 +10423,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Lair_inconnu/lair_inconnu/01_Contreforts_Adrakula.opus",
@@ -10500,7 +10500,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Le_Bal_Brotto_Lopez/Adiu_Miladiu/06.La_dansarem_pas_pus.opus",
@@ -10554,7 +10554,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Le_Bal_Brotto_Lopez/Le_Bal_Brotto_Lopez/01.Dejol_pont_de_Lion_(ronda).opus",
@@ -10644,7 +10644,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Le_Bal_Brotto_Lopez/Le_Bal_Brotto_Lopez/14.Lo_Pichon_trin_(mazurkà).opus",
@@ -10662,7 +10662,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Le_Driadi/Dentro_lo_specchio/03_Dentro_lo_specchio.opus",
@@ -10769,7 +10769,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Le_Quintet_a_Claques/La_Marque_Rouge/5.La_Ruée_vers_Laure_(mazurka).opus",
@@ -10815,7 +10815,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Les_Conteuses_de_pas/Profitons_des_Beaux_Jours/005_Cueillir_la_rose.opus",
@@ -10865,7 +10865,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Les_Conteuses_de_pas/Profitons_des_Beaux_Jours/012_Mon_père_il_veut_m'y_marier.opus",
@@ -10950,7 +10950,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Les_Mains_Baladeuses/Rouge/007_mazurka_des_lucioles.opus",
@@ -11050,7 +11050,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Les_Zeoles/Des_papillons_dans_le_ventre/001_L'atelier.opus",
@@ -11068,7 +11068,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Les_Zeoles/Des_papillons_dans_le_ventre/003_Belfort.opus",
@@ -11095,7 +11095,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Les_Zeoles/Des_papillons_dans_le_ventre/008_Le_goût_de_l'amer.opus",
@@ -11220,7 +11220,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Les_Zeoles/Pareidolies/10.Paréidolies.opus",
@@ -11255,7 +11255,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Les_Zeoles/Sur_mesure/004_La_chambre_bleue.opus",
@@ -11323,7 +11323,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Les_Zeoles/Urban_Rhapsodie/003_Le_mercredi_c'est_sashimi_Smoothie.opus",
@@ -11460,7 +11460,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Limbrant/Alezi/003_Polka.opus",
@@ -11523,7 +11523,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Limbrant/Alezi/014_Mazurka.opus",
@@ -11550,7 +11550,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Limbrant/Alezi/017_Mazurka.opus",
@@ -11568,7 +11568,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Lirio/Hanterdroom/001_Hanterdroom.opus",
@@ -11590,7 +11590,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Lirio/Hanterdroom/003_Afke's_mazurka.opus",
@@ -11617,7 +11617,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Lirio/Hanterdroom/006_Coockabourrée.opus",
@@ -11671,7 +11671,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Lirio/Hanterdroom/013_Mazurka_voor_een_mus.opus",
@@ -11689,7 +11689,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Lirio/Lirio/04.Dubbele_trekzakbourrée.opus",
@@ -11833,7 +11833,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Loened_Fall/Start_da_lacho/08_Distro_ar_martolod_(1).opus",
@@ -11914,7 +11914,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Man_Encantada/Chivau_de_Gasconha/07.La_calorada.opus",
@@ -11968,7 +11968,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Marchand_Menneteau_Lange/Hiri/01_Son_ar_vot.ogg",
@@ -11995,7 +11995,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Marion_Ludwig_Steve_Ellis_Geoff_Beilby/Reve_du_Matin/02.Lalique_(mazurka).opus",
@@ -12050,7 +12050,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Marion_Ludwig_Steve_Ellis_Geoff_Beilby/Reve_du_Matin/10.Baroque_grove_The_water_garden_(scottish).opus",
@@ -12099,7 +12099,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Martin_Lassouque/Contras/04_Polkas_d_apres_Henri_Dauba_et_Gerard_Brustis.opus",
@@ -12135,7 +12135,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Martin_Lassouque/Contras/09_Las_hilhotas_be_n_son_polidas_Fotetz-me_lo_camp_canalhas.opus",
@@ -12225,7 +12225,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Maubuissons/Brehattitude/009_Duellists_et_sans_fin.opus",
@@ -12243,7 +12243,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Milleret_Pignol/Sales_Gosses/01_La_chambre_bleue.opus",
@@ -12355,7 +12355,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Minuit_Guibolles/Aye_Na_Donke/6.Larry_d_8_ans.opus",
@@ -12758,7 +12758,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "NIJ/LesOrbesDeCristals/13_Pasiphaé.opus",
@@ -12776,7 +12776,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Naragonia/Janneke_Tarzan/02.Calimero_(hanter_dro).opus",
@@ -12857,7 +12857,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Naragonia/Tandem/01.Martin_Pêcheur_Pink_Molly.opus",
@@ -12875,7 +12875,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Naragonia/Tandem/05.Alio.opus",
@@ -12971,7 +12971,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Natah_Big_Band/Cameleon/08_Caméléon.opus",
@@ -13003,7 +13003,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Noiranomis/Bolbec_Lorient_et_autres_lieux/02.La_Rivière_Bourrée_2_temps.opus",
@@ -13021,7 +13021,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Noiranomis/Bolbec_Lorient_et_autres_lieux/08.Ya_bien_10_ans_la_belle_Hanter_dro.opus",
@@ -13043,7 +13043,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Noiranomis/Bolbec_Lorient_et_autres_lieux/11.Soleil_dété_Vent_dété_Valse_à_3_temps.opus",
@@ -13052,7 +13052,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Noiranomis/Bolbec_Lorient_et_autres_lieux/12.Pierre_et_Florence_Mazurka.opus",
@@ -13153,7 +13153,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Nostrad/Live_au_baldingue/07.La_Sansonnette.opus",
@@ -13198,7 +13198,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Nubia/Vogelvrij/06_Tanz_im_Spätsommer_gavotte_de_l'Aven_caresse.opus",
@@ -13238,7 +13238,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Nubia/in_de_wolken/02_Lente_in_m'n_Kop.opus",
@@ -13301,7 +13301,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Nubia/in_de_wolken/09_Stilte_voor_de_Storm.opus",
@@ -13396,7 +13396,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Oraj/Good_Monsters_Carnival/6.Feu_(andro).opus",
@@ -13535,7 +13535,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Orfeo/Terra_Amorosa/05_Ronja's_Lullaby_(mazurka).opus",
@@ -13619,7 +13619,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Oriaz/Oriaz/09_Andro.opus",
@@ -13665,7 +13665,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Parasol/Brume/02_Damadienne_(polka).opus",
@@ -13683,7 +13683,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Parasol/Brume/04_D'arbre_en_arbre_(mazurka).opus",
@@ -13765,7 +13765,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Parasol/Brume/14_Dromadaire_(chapeloise).opus",
@@ -13801,7 +13801,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Parasol/Clandestine_Mazurkas/03_Deux_écureuils.opus",
@@ -13864,7 +13864,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Parasol/Miroir/04_Miroir.opus",
@@ -13981,7 +13981,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Parasol/Turbulences/04_Temps_calme_(scottish).opus",
@@ -14022,7 +14022,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Parasol/Turbulences/09_Le_vent_se_lève_(scottish).opus",
@@ -14049,7 +14049,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Parasol/Turbulences/12_Brise_(valse_3_temps).opus",
@@ -14058,7 +14058,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Parasol/de_toutes_les_couleurs/01_Scottish_orange.opus",
@@ -14085,7 +14085,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Parasol/de_toutes_les_couleurs/04_Bourree_techno.opus",
@@ -14457,7 +14457,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Philippe_Plard/La_Valse_magnetique/04_L'arracheur_de_temps_La_bague_au_doigt_(bourrées_3_temps).opus",
@@ -14585,7 +14585,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Philippe_Plard_Quartet/Live_a_Gennetines/08_Les_temps_sur_l'étang_(mazurka).opus",
@@ -14643,7 +14643,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Planchee/Planchee/01_Le_Limousin_(polka).opus",
@@ -14721,7 +14721,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Plantec/Hironaat/04_Hajime_(Pilé_menu).opus",
@@ -14843,7 +14843,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Remi_Geffroy/Odysseus_live/04.Tornade_Blanche.opus",
@@ -14947,7 +14947,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Saitenreich/Aufbruch/07_Herbstwalzer.opus",
@@ -14956,7 +14956,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Salut/Bewegungslust/03_Muzike_Mazurka.opus",
@@ -15119,7 +15119,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Sonerezh_Bro_Rouzig/Musique_traditionelle_du_pays_rouzig/02_Gavotenn_Gavotte.opus",
@@ -15178,7 +15178,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Sonerien_Du/Bal_breton/04_Laridé_(le_croisic).opus",
@@ -15276,7 +15276,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Sonerien_Du/La_Komplet/01_Que_dit_on_de_lamour.opus",
@@ -15553,7 +15553,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Sonerien_Du/Steir/02_Toutes_directions.opus",
@@ -15626,7 +15626,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Sonj/LAlbum_live_du_spectacle/03_La_Graïe_su_la_Pllace_Tour.opus",
@@ -15686,7 +15686,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Sons_Libres/Exodes_Sous_la_Lune/03_Jeem_(scottish).opus",
@@ -15713,7 +15713,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Sons_Libres/Exodes_Sous_la_Lune/06_21.02.2010_(scottish).opus",
@@ -15758,7 +15758,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Sons_Libres/Exodes_Sous_la_Lune/12_Ndox_(rond'eau_en_couple).opus",
@@ -15776,7 +15776,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Sons_Libres/Exodes_Sous_la_Lune/15_Mazurka_des_anges.opus",
@@ -15794,7 +15794,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "SousLePont/SousLePont/1.Cest_fini.opus",
@@ -15835,7 +15835,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "SousLePont/SousLePont/5.Polka_ascensionelle.opus",
@@ -15853,7 +15853,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "SousLePont/SousLePont/9.Le_Ballet_mécanique.opus",
@@ -15926,7 +15926,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Startijenn/El_TaQa/08_Droug_red.opus",
@@ -15954,7 +15954,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Startijenn/Skeud/08_Tasmant_ar_forbann.opus",
@@ -15999,7 +15999,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Stephane_Delicq/La_Compagnie_des_anges/03_Nadiejda_mazurka.ogg",
@@ -16031,7 +16031,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Stephane_Delicq/La_Compagnie_des_anges/06_La_Femme_de_marbre_mazurka.ogg",
@@ -16080,7 +16080,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Stephane_Delicq/La_Compagnie_des_anges/12_La_Nina_valse_a_8_temps.ogg",
@@ -16112,7 +16112,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Stephane_Delicq/La_Compagnie_des_anges/15_Marie_Pierre_an_dro.ogg",
@@ -16140,7 +16140,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Strobinell/An_Aoutrou_Liskildri/02_Korollou_Sant_Visant.opus",
@@ -16359,7 +16359,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Te/Squirrels_Stash/05.Jig_Bourguignon.opus",
@@ -16472,7 +16472,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Timothee_LE_BOUR/BODROS_Youen__Deus_pelec'h_e_teu_an_avel/001_Tavaranza.opus",
@@ -16517,7 +16517,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Timothee_Le_Bour_Youen_Bodros/01.Trans_Tregor_Express_Scottish.opus",
@@ -16544,7 +16544,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Timothee_Le_Bour_Youen_Bodros/10.Ar_Stolier_Rond_de_Saint_Vincent.opus",
@@ -16589,7 +16589,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Toctoctoc/Bonsoir_Clara/003_Boing.opus",
@@ -16644,7 +16644,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "TradTöchter/Liebeslieder_im_Rahmen_der_Möglichkeiten/10_Keleolu.opus",
@@ -16688,7 +16688,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Tralala_Lovers/Cest_un_plaisir_que_daimer/06.Mazurka_du_pangolin.opus",
@@ -16769,7 +16769,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Traucaneu/Traucaneu/03.Adieu_Belle_Isabeau.opus",
@@ -16787,7 +16787,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Traucaneu/Traucaneu/08.Scottish_à_Peyrat__La_Délaissèe__Lo_Chapèl_de_Palha.opus",
@@ -16814,7 +16814,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Trencadit/Las_Honts/01_Bidau_-_Rocahort.opus",
@@ -16868,7 +16868,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Trio_14/En_Aeroplan/03_Valse_n.34.opus",
@@ -16877,7 +16877,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Trio_14/En_Aeroplan/09_Mazurka_n_6_Bleuettes.opus",
@@ -16944,7 +16944,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Trio_Dhoore/Momentum/011_Maasland_jig_Wij_3.opus",
@@ -16962,7 +16962,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Trio_Dhoore/Parachute/007_The_Offbeat_Jig_Keep_dreaming.opus",
@@ -17012,7 +17012,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Trio_Grande/Bagage/05.Romanze.opus",
@@ -17021,7 +17021,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Trio_Grande/Bagage/06.Contrabana.opus",
@@ -17079,7 +17079,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Trio_Larsson_Mayr/Magnolia/13.Schmutzige_Details.opus",
@@ -17088,7 +17088,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Trio_Larsson_Mayr/Magnolia/14.Werkstattfest.opus",
@@ -17238,7 +17238,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Trio_Loubelya/Rua_da_alegria/08.Lulu__Typon.opus",
@@ -17465,7 +17465,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "VAG/Complicites/05_Bonjour_Bonsoir.opus",
@@ -17525,7 +17525,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "VAG/Complicites/13_Adieu_ma_Dédée.opus",
@@ -17534,7 +17534,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "VAG/Des_sourires_et_des_larmes/001_La_belle_vie_à_deux_pas_d'ici.opus",
@@ -17592,7 +17592,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "VAG/Des_sourires_et_des_larmes/010_L'araignée_d'un_soir.opus",
@@ -17610,7 +17610,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "VAG/Des_sourires_et_des_larmes/012_Les_bêtises_d'Agalak.opus",
@@ -17642,7 +17642,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "VAG/Des_sourires_et_des_larmes/015_Un_coeur_à_prendre.opus",
@@ -17660,7 +17660,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Verd_e_Blu/Musicas_a_dançar/004_Camparòus.opus",
@@ -17718,7 +17718,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Violet/En_we_noemen_haar/3.Levensdans.opus",
@@ -17807,7 +17807,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Viorel/Flandriens/06.Uncle_Wilburs.opus",
@@ -17834,7 +17834,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Viorel/Flandriens/09.Flandriens.opus",
@@ -17961,7 +17961,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Wouter_Vandenabeele_Tom_Theuns_feat_Aurelie_Dorzee_Bao_Sissoko/Chansons_pour_les_oiseaux_qui_ne_savent_pas_voler/12_Wouter_Vandenabeele_Tom_Theuns_Ridées.opus",
@@ -18178,7 +18178,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Wouter_en_de_Draak/Zonnewachter/11.Fretjetoe.opus",
@@ -18196,7 +18196,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "YAO/Porspaul/01_Hanter_Dro.opus",
@@ -18277,7 +18277,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "Yann-Fanch_Kemener_Trio/Dans/004_An_dro_an_Trouzerion.opus",
@@ -18411,7 +18411,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "aurelia/THE_HOUR_OF_THE_WOLF/012_Mazurka_du_chat.opus",
@@ -18504,7 +18504,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "nisia/le_pedi/07.Polka_di_zio_Vincenzo.opus",
@@ -18558,7 +18558,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "nisia/le_pedi/13.Palumma_ianca_waltz.opus",
@@ -18567,7 +18567,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "nisia/le_pedi/14.Giga_della_fine_del_mondo_chapelloise.opus",
@@ -18621,7 +18621,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   },
   {
    "file": "shillelagh/danse_sur_l'eau/09_Bourrée_de_l'Oïe_La_pique_assiette.opus",
@@ -18639,7 +18639,7 @@
    "meter": "3/4",
    "type": "ternary",
    "source": "dance",
-   "status": "assumed"
+   "status": "confirmed"
   }
  ]
 }

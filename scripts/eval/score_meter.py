@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Score folksentia's meter estimates against meter_labels.json.
 
-  score_meter.py --music-root ~/Musik [--variant default] [--binary builddir/folksentia] [-j 8]
+  score_meter.py --music-root ~/Musik [--variant default] [--binary builddir/folksentia] [-j 8] [--sample N]
                  [--reference ref.json] [--by dance|meter] [--disagreements] [--markdown]
 
 Runs `folksentia --downbeats` on every labelled file found under the music
@@ -30,6 +30,7 @@ Standard library only.
 import argparse
 import collections
 import json
+import random
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -106,11 +107,14 @@ def main():
     ap.add_argument("--by", choices=("meter", "dance"), default="meter")
     ap.add_argument("--disagreements", action="store_true")
     ap.add_argument("--markdown", action="store_true", help="only the summary table, for the README")
+    ap.add_argument("--sample", type=int, help="score only this many labelled tracks, picked at random (seed 1)")
     ap.add_argument("-j", type=int, default=8)
     a = ap.parse_args()
 
     tunes = json.loads(a.labels.read_text(encoding="utf-8"))["tunes"]
     found = [t for t in tunes if (a.music_root / t["file"]).is_file()]
+    if a.sample and a.sample < len(found):
+        found = sorted(random.Random(1).sample(found, a.sample), key=lambda t: t["file"])
     if len(found) < len(tunes):
         print(f"{len(tunes) - len(found)} of {len(tunes)} labelled files not under {a.music_root}", file=sys.stderr)
     cache = results_dir("meter", a.variant)
