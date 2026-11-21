@@ -15,13 +15,16 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <functional>
 #include <cstdio>
+#include <cstdlib>
 #include <iomanip>
 #include <iostream>
 #include <iterator>
 #include <memory>
 #include <numeric>
 #include <optional>
+#include <set>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -88,6 +91,10 @@ struct Rhythm {
   struct Alternative { int pulses; Real sec, score; };
   std::vector<Alternative> alternatives;
   std::vector<Real> accentEnergy, accentBass;  // per pulse of the bar, 0..1
+  // Uneven grouping of the bar's pulses into beats (measureGrouping), first
+  // part starting on the first accent pulse; unset when not clear.
+  std::vector<int> grouping;
+  Real groupingScore = 0;
   struct Point { Real startSec, barsPerMin; };
   std::vector<Point> tempoCurve;
   // Drift and slope of the bar tempo (measureRhythm), jitter of the beat
@@ -601,6 +608,123 @@ std::optional<std::vector<int>> measureDownbeats(const std::vector<Real>& audio,
 }
 
 // ---- Rhythm: pulse, bar, accents and tempo curve (README, "rhythm") --------
+
+// Grouping of the bar (README, "grouping"). Candidates for a bar of n pulses
+// (kGroupingMinPulses..kGroupingMaxPulses): the uneven groupings into beats
+// of 2 and 3 pulses (3+2, 3+3+2, 3+3+2+3, ...) and of one beat of 4 with one
+// other (4+2, 4+3); against them the even ones (2+2+2, 3+3, 4+4, ...). Each
+// candidate, at each rotation, is scored by the correlation of its beat starts
+// (1 at a beat start, 0 elsewhere) with an accent profile. The best uneven
+// candidate on the whole-track profile is reported when it beats the best
+// even one by kGroupingMinMargin there and is also the best candidate, at the
+// same rotation, in at least kGroupingMinWindows of the 30 s windows.
+constexpr int kGroupingMinPulses = 5, kGroupingMaxPulses = 12;
+constexpr Real kGroupingMinMargin = 0.1, kGroupingMinWindows = 0.5, kGroupingMinContrast = 1.2;
+
+struct GroupingCandidate { std::vector<int> parts; bool even; };
+
+std::vector<GroupingCandidate> groupingCandidates(int n) {
+  std::vector<GroupingCandidate> out;
+  std::set<std::vector<int>> seen;  // canonical rotation
+  auto add = [&](const std::vector<int>& g) {
+    std::vector<int> key = g;
+    for (size_t r = 1; r < g.size(); ++r) {
+      std::vector<int> rot(g.begin() + r, g.end());
+      rot.insert(rot.end(), g.begin(), g.begin() + r);
+      key = std::min(key, rot);
+    }
+    if (!seen.insert(key).second) return;
+    const bool even = std::all_of(g.begin(), g.end(), [&](int x) { return x == g[0]; });
+    out.push_back({g, even});
+  };
+  std::vector<int> acc;
+  std::function<void(int)> rec = [&](int left) {
+    if (left == 0) { if (acc.size() >= 2) add(acc); return; }
+    for (int part : {2, 3})
+      if (part <= left) { acc.push_back(part); rec(left - part); acc.pop_back(); }
+  };
+  rec(n);
+  for (int other : {2, 3})
+    if (n == 4 + other) add({4, other});
+  for (int k : {2, 3, 4, 6})
+    if (n % k == 0 && n / k >= 2) add(std::vector<int>(n / k, k));
+  return out;
+}
+
+// Correlation of profile p with the beat starts of `parts` rotated by `rot`.
+Real groupingCorrelation(const std::vector<Real>& p, const std::vector<int>& parts, int rot) {
+  const int n = int(p.size());
+  std::vector<Real> ind(n, 0);
+  for (int pos = rot, k = 0; k < int(parts.size()); pos += parts[k++]) ind[pos % n] = 1;
+  Real mp = 0, mi = 0;
+  for (int j = 0; j < n; ++j) { mp += p[j] / n; mi += ind[j] / n; }
+  Real num = 0, dp = 0, di = 0;
+  for (int j = 0; j < n; ++j) {
+    num += (p[j] - mp) * (ind[j] - mi);
+    dp += (p[j] - mp) * (p[j] - mp);
+    di += (ind[j] - mi) * (ind[j] - mi);
+  }
+  return dp > 0 && di > 0 ? num / std::sqrt(dp * di) : 0;
+}
+
+// Sets r.grouping and r.groupingScore from the aligned per-window accent
+// profiles (energy + bass per pulse, first pulse = r.accentEnergy's first).
+void measureGrouping(const std::vector<std::vector<Real>>& windows, Rhythm& r) {
+  const int n = r.barPulses;
+  if (n < kGroupingMinPulses || n > kGroupingMaxPulses || windows.empty()) return;
+  const auto cands = groupingCandidates(n);
+  std::vector<Real> whole(n, 0);
+  for (const auto& w : windows)
+    for (int j = 0; j < n; ++j) whole[j] += w[j];
+
+  // Best (candidate, rotation) on a profile; best even score.
+  struct Best { int cand = -1, rot = 0; Real score = -2, even = -2; };
+  auto best = [&](const std::vector<Real>& p, bool unevenOnly) {
+    Best b;
+    for (size_t c = 0; c < cands.size(); ++c)
+      for (int rot = 0; rot < n; ++rot) {
+        const Real s = groupingCorrelation(p, cands[c].parts, rot);
+        if (cands[c].even) b.even = std::max(b.even, s);
+        if ((!unevenOnly || !cands[c].even) && s > b.score) { b.score = s; b.cand = int(c); b.rot = rot; }
+      }
+    return b;
+  };
+  const Best top = best(whole, true);
+  if (top.cand < 0) return;
+  const Real margin = top.score - std::max(top.even, Real(0));
+  int agree = 0;
+  for (const auto& w : windows) {
+    const Best b = best(w, false);
+    // The same beat starts: same candidate at the same rotation, or a
+    // rotation that is the same set of starts.
+    if (b.cand >= 0 && !cands[b.cand].even &&
+        std::abs(groupingCorrelation(w, cands[top.cand].parts, top.rot) - b.score) < 1e-9)
+      ++agree;
+  }
+  const Real share = Real(agree) / windows.size();
+  // Contrast: mean accent at the beat starts over the mean elsewhere.
+  std::vector<int> starts;
+  const auto& parts = cands[top.cand].parts;
+  for (int pos = top.rot, k = 0; k < int(parts.size()); pos += parts[k++]) starts.push_back(pos % n);
+  Real in = 0, out = 0;
+  for (int j = 0; j < n; ++j)
+    (std::find(starts.begin(), starts.end(), j) != starts.end() ? in : out) += whole[j];
+  in /= Real(starts.size());
+  out /= Real(n - int(starts.size()));
+  const Real contrast = out > 0 ? in / out : 0;
+  if (std::getenv("FOLKSENTIA_DEBUG_GROUPING")) {
+    std::cerr << "grouping n=" << n << " parts=";
+    for (int x : cands[top.cand].parts) std::cerr << x << ",";
+    std::cerr << " score=" << top.score << " even=" << top.even << " windows=" << share << " contrast=" << contrast << "\n";
+  }
+  if (margin < kGroupingMinMargin || share < kGroupingMinWindows || contrast < kGroupingMinContrast) return;
+
+  // Parts starting at the first beat start at or after pulse 0.
+  std::sort(starts.begin(), starts.end());
+  for (size_t k = 0; k < starts.size(); ++k)
+    r.grouping.push_back((k + 1 < starts.size() ? starts[k + 1] : starts[0] + n) - starts[k]);
+  r.groupingScore = share;
+}
 //
 // Computed from a spectral-flux onset envelope rather than from the beat
 // tracker, whose beats land on different note values from tune to tune. The
@@ -1055,6 +1179,16 @@ std::optional<Rhythm> measureRhythm(const std::vector<Real>& audio, Real sr) {
       r.accentEnergy.push_back(std::round(en[(j + first) % n] / maxE * 100) / 100);
       r.accentBass.push_back(std::round(bs[(j + first) % n] / maxB * 100) / 100);
     }
+    std::vector<std::vector<Real>> profiles;
+    for (size_t w = 0; w < energy.size(); ++w) {
+      std::vector<Real> pw(n);
+      for (int j = 0; j < n; ++j) {
+        const int k = (j + first + rot[w]) % n;
+        pw[j] = energy[w][k] + bass[w][k];
+      }
+      profiles.push_back(std::move(pw));
+    }
+    measureGrouping(profiles, r);
   }
   return r;
 }
@@ -1552,6 +1686,15 @@ void printRhythm(std::ostream& o, const std::optional<Rhythm>& r, const std::str
   o << ",\n" << in3 << "\"bass\": ";
   printNumbers(o, r->accentBass);
   o << "\n" << in2 << "},\n"
+    << in2 << "\"grouping\": ";
+  if (r->grouping.empty()) {
+    o << "null";
+  } else {
+    o << "{\"parts\": [";
+    for (size_t i = 0; i < r->grouping.size(); ++i) o << (i ? ", " : "") << r->grouping[i];
+    o << "], \"score\": " << jsonNum(Real(std::round(r->groupingScore * 100) / 100)) << "}";
+  }
+  o << ",\n"
     << in2 << "\"tempoCurve\": [";
   for (size_t i = 0; i < r->tempoCurve.size(); ++i)
     o << (i ? ", " : "") << "{\"startSec\": " << jsonSeconds(r->tempoCurve[i].startSec)
