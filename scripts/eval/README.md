@@ -99,6 +99,39 @@ Beat This!) from a JSON map file → {name: beats per bar}, for comparison only.
 those labels by ear. Tags are not perfect; 35 of about 210 bourrées had the
 wrong 2t/3t tag before such a check.
 
+## Measurement store
+
+`measurements.jsonl` collects the existing meter runs, the library's tags and
+the meter labels into one line per tune (no audio). `path` is relative to the
+music root and is the key; `mbid`, artist/album/title/date, `dance` (current
+dancebrainz dance), `dancebrainz` (dances with their paths, meter/structure
+tags, bpm, raters) and `label` (meter label, if any) come from the library and
+labels. Also present are `finding` and `runs`. `runs` maps each meter-run file
+name to that run's `dance` and its record: tool answers (`folksentia`,
+`madmom`, `beatthis`), beat-synchronous lag similarities (`lags`), or whatever
+that run stored.
+
+`finding` is the 4-bar autocorrelation test derived from the runs: for chroma
+and onset it keeps the similarity at lag 12 (four 3-beat bars) against 8 (four
+2-beat bars) and 16 (eight 2-beat bars), their difference `12 - max(8, 16)`,
+the source run, and `phraseMeter` (`3/4` when the summed score is positive,
+else `binary`). `agreesWithLabel` compares it with the label's meter type.
+
+```sh
+python3 build_measurements.py                     # regenerate from the default paths
+python3 build_measurements.py --long -o /tmp/runs.jsonl   # one row per tune and run
+```
+
+The default inputs are `~/folksentia-cloud/meter-runs/*.json`,
+`~/folksentia-cloud/library.json` and `meter_labels.json`; override them with
+`--runs-dir`, `--library` and `--labels`. Regenerate after a meter run or a
+dancebrainz refresh. For example, to list valses whose folksentia `barPulses`
+disagrees with the 3/4 label:
+
+```sh
+python3 -c 'import json; [print(r["path"], r["runs"].get("valse", {}).get("folksentia", {}).get("barPulses")) for r in map(json.loads, open("measurements.jsonl")) if r["label"] and r["label"]["meter"] == "3/4" and r["dance"] == "Valse" and r["runs"].get("valse", {}).get("folksentia", {}).get("barPulses") not in (3, 6)]'
+```
+
 ## Ballroom metrics
 
 All in percent, averaged per dance style and overall:
