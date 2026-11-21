@@ -263,6 +263,7 @@ def main():
     check(all(out["loudness"][k] is None for k in ("integratedLufs", "truePeakDbtp", "lraLu", "plrDb",
                                                    "noiseFloorLufs")), "silence: loudness null")
     check(out["beats"] == [] and out["downbeatIndexes"] is None, "silence: no beats, no downbeats")
+    check(out["downbeatMeter"] is None, f"silence: downbeatMeter null, no default meter (got {out['downbeatMeter']})")
     check(out["rhythm"] is None, "silence: rhythm null")
     check(near(out["duration"], 3, 0.001), "silence: duration 3 s")
 

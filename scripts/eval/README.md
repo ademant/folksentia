@@ -67,6 +67,38 @@ positions within the bar, for any bar start. The beat tracker's `bpm` is shown
 for comparison. Add tunes by appending to the file: dance, meter and grouping
 from someone who knows the tune, the bar length measured or counted by hand.
 
+## Meter labels
+
+`meter_labels.json` labels the meter of about 1,900 folk dance tracks from
+the dance and meter tags on [dancebrainz](https://dancebrainz.balfolk.social)
+(labels only, keyed by MusicBrainz recording id and file path; no audio).
+A dance with a known meter labels its tracks (bourrée 2t 2/4, bourrée 3t
+3/4, an dro and laridé 8t 4/4 with an 8-step cycle, ridée and hanter dro 6/4
+as 4+2, valse and mazurka 3/4, valse 5t/8t/11t as 3+2 / 3+3+2 / 3+3+2+3 ...);
+a dancebrainz meter tag alone labels other dances. Tracks with several dance
+tags, a meter tag that contradicts the dance, or a dance too irregular for one
+meter (zwiefacher, branle, polska, untagged bourrée) are left out. The
+dances table in the file says which meters were confirmed by a dancer and
+which are only assumed.
+
+```sh
+python3 make_meter_labels.py --music-root ~/Musik --lookup-cache ~/dbz.json   # regenerate
+python3 score_meter.py --music-root ~/Musik --variant default -j 8
+python3 score_meter.py --music-root ~/Musik --by dance --disagreements
+```
+
+`score_meter.py` runs `folksentia --downbeats` on the labelled files it finds
+(cached per variant under `results/meter/`) and scores `rhythm.barPulses`,
+`downbeatMeter` and `rhythm.microtiming.beatsPerBar`: **type** = binary,
+ternary, six or odd as labelled (an odd bar also counts when the exact meter
+or twice it is given), **exact** = the labelled beats, twice or half of them,
+**none** = no answer, and **right** = of the tracks an estimator puts in a
+type, the share labelled so. `--reference` adds other trackers (e.g. madmom,
+Beat This!) from a JSON map file → {name: beats per bar}, for comparison only.
+`--disagreements` lists tracks where every answer has the wrong type: check
+those labels by ear. Tags are not perfect; 35 of about 210 bourrées had the
+wrong 2t/3t tag before such a check.
+
 ## Ballroom metrics
 
 All in percent, averaged per dance style and overall:

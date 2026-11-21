@@ -143,9 +143,10 @@ struct Features {
   std::vector<int> waveform;
 
   // Indexes into ticks that start a bar; unset when unknown. downbeatMeter:
-  // the beats per bar used for them (--meter, or from the measured bar).
+  // the beats per bar (--meter, or from the measured bar, see analyse());
+  // unset when unknown.
   std::optional<std::vector<int>> downbeatIndexes;
-  int downbeatMeter = 0;
+  std::optional<int> downbeatMeter;
 
   // Note onsets, --onsets only; unset for digital silence.
   std::optional<Onsets> onsets;
@@ -1220,7 +1221,6 @@ std::optional<Real> beatJitter(const std::vector<Real>& ticks) {
 // local mean removed), peaks at least kOnsetMinGapSec apart and above
 // kOnsetRel times the 99th percentile, the time interpolated between frames.
 constexpr Real kOnsetFrameSec = 0.023, kOnsetMinGapSec = 0.05, kOnsetRel = 0.1;
-constexpr int kDefaultMeter = 4;  // downbeats when the bar is unknown
 
 Onsets measureOnsets(const std::vector<Real>& audio, Real sr) {
   const int frameSize = 1 << int(std::lround(std::log2(kOnsetFrameSec * sr)));
@@ -1637,17 +1637,27 @@ Features analyze(const std::string& file, const Options& opt) {
 
   // Downbeats (needs the beat ticks).
   if (opt.downbeats) {
-    // --meter, else the measured bar (or twice it, see measureDownbeats),
-    // else kDefaultMeter.
-    std::vector<int> meters{opt.meter};
-    if (opt.meter == 0) {
-      const int B = f.rhythm ? beatsPerBar(f.ticks, *f.rhythm) : 1;
-      if (B >= 2) meters = {B};
-      else meters = {kDefaultMeter};
-      if (B >= 1 && 2 * B <= 12 && 2 * B != meters.front()) meters.push_back(2 * B);
+    // --meter, else the beats in the measured bar; for an even number also
+    // twice it (see measureDownbeats), never for an odd one (3 must not
+    // become 6). When the beat ticks do not divide the bar (a 3/8 bar with a
+    // tick every two eighths), there are no downbeats on the ticks and the
+    // meter is the bar in pulses; without a bar, none (#49).
+    const Onsets* on = onsets ? &*onsets : nullptr;
+    int used = 0;
+    if (opt.meter > 0) {
+      f.downbeatIndexes = measureDownbeats(audio, f.ticks, sr, {opt.meter}, on, used);
+      f.downbeatMeter = opt.meter;
+    } else if (f.rhythm) {
+      const int B = beatsPerBar(f.ticks, *f.rhythm);
+      if (B >= 2) {
+        std::vector<int> meters{B};
+        if (B % 2 == 0 && 2 * B <= 12) meters.push_back(2 * B);
+        f.downbeatIndexes = measureDownbeats(audio, f.ticks, sr, meters, on, used);
+        f.downbeatMeter = used;
+      } else if (f.rhythm->barPulses >= 2 && f.rhythm->barPulses <= 12) {
+        f.downbeatMeter = f.rhythm->barPulses;
+      }
     }
-    f.downbeatIndexes = measureDownbeats(audio, f.ticks, sr, meters, onsets ? &*onsets : nullptr,
-                                         f.downbeatMeter);
   }
   if (opt.onsets) f.onsets = std::move(onsets);
 
@@ -1768,8 +1778,10 @@ void printFile(std::ostream& o, const std::string& file, const Features& f,
     o << "]";
   }
   if (opt.downbeats) {
-    o << ",\n" << in << "\"downbeatMeter\": " << f.downbeatMeter
-      << ",\n" << in << "\"downbeatIndexes\": ";
+    o << ",\n" << in << "\"downbeatMeter\": ";
+    if (f.downbeatMeter) o << *f.downbeatMeter;
+    else o << "null";
+    o << ",\n" << in << "\"downbeatIndexes\": ";
     if (f.downbeatIndexes) {
       o << "[";
       for (size_t i = 0; i < f.downbeatIndexes->size(); ++i)
